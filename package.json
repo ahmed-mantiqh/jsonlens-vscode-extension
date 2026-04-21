@@ -1,0 +1,145 @@
+{
+  "name": "jsonlens",
+  "displayName": "JsonLens",
+  "description": "JSON Hero-style navigation and analysis inside VS Code",
+  "version": "0.1.0",
+  "publisher": "jsonlens",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other", "Visualization"],
+  "activationEvents": [
+    "onLanguage:json",
+    "onLanguage:jsonc"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "views": {
+      "explorer": [
+        {
+          "id": "jsonlensTree",
+          "name": "JSON Lens",
+          "when": "resourceLangId == json || resourceLangId == jsonc",
+          "icon": "$(json)"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "jsonlens.collapseAll",
+        "title": "JsonLens: Collapse All",
+        "icon": "$(collapse-all)"
+      },
+      {
+        "command": "jsonlens.copyPath",
+        "title": "JsonLens: Copy JSON Path"
+      },
+      {
+        "command": "jsonlens.copyValue",
+        "title": "JsonLens: Copy Value"
+      },
+      {
+        "command": "jsonlens.revealInTree",
+        "title": "JsonLens: Reveal in Tree"
+      },
+      {
+        "command": "jsonlens.openPreview",
+        "title": "JsonLens: Open Preview"
+      },
+      {
+        "command": "jsonlens.searchTree",
+        "title": "JsonLens: Search",
+        "icon": "$(search)"
+      },
+      {
+        "command": "jsonlens.analyzeFields",
+        "title": "JsonLens: Analyze Fields"
+      },
+      {
+        "command": "jsonlens.inferSchema",
+        "title": "JsonLens: Infer JSON Schema"
+      },
+      {
+        "command": "jsonlens.exportSchema",
+        "title": "JsonLens: Export Schema"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "jsonlens.copyPath",
+          "when": "resourceLangId == json || resourceLangId == jsonc",
+          "group": "jsonlens@1"
+        },
+        {
+          "command": "jsonlens.revealInTree",
+          "when": "resourceLangId == json || resourceLangId == jsonc",
+          "group": "jsonlens@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "jsonlens.copyPath",
+          "when": "view == jsonlensTree",
+          "group": "jsonlens@1"
+        },
+        {
+          "command": "jsonlens.copyValue",
+          "when": "view == jsonlensTree",
+          "group": "jsonlens@2"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "jsonlens.searchTree",
+          "when": "view == jsonlensTree",
+          "group": "navigation@1"
+        },
+        {
+          "command": "jsonlens.collapseAll",
+          "when": "view == jsonlensTree",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "JsonLens",
+      "properties": {
+        "jsonlens.largeFileThresholdMB": {
+          "type": "number",
+          "default": 2,
+          "description": "Files above this size (MB) use streaming parse."
+        },
+        "jsonlens.veryLargeFileThresholdMB": {
+          "type": "number",
+          "default": 20,
+          "description": "Files above this size (MB) use top-level-only streaming."
+        },
+        "jsonlens.maxChildrenPerNode": {
+          "type": "number",
+          "default": 200,
+          "description": "Max children rendered per node before pagination."
+        },
+        "jsonlens.debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable debug output channel with timing logs."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.extension.js",
+    "watch": "node esbuild.extension.js --watch",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.20.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.2.0"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.2.1"
+  }
+}
