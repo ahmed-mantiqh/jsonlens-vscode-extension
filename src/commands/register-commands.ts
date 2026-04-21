@@ -6,24 +6,18 @@ import { buildIndex, query, type SearchIndex, type SearchMatch } from "../search
 import { buildNodePayload } from "../webview/node-payload.js";
 import { analyzeArrayNode } from "../analysis/field-analyzer.js";
 import { inferSchemaNode } from "../analysis/schema-inferrer.js";
-import { handleLoadMore } from "../performance/virtual-list.js";
-import type { JsonTreeProvider } from "../tree/json-tree-provider.js";
-import type { PanelManager } from "../webview/panel-manager.js";
+import { JsonLensEditorProvider } from "../providers/json-lens-editor-provider.js";
+import type { JsonFilesProvider } from "../tree/json-files-provider.js";
 import { log } from "../utils/logger.js";
 
 type SearchScope = "keys" | "values" | "both";
 
 export function registerCommands(
   ctx: vscode.ExtensionContext,
-  treeView: vscode.TreeView<JsonNode>,
-  panelManager: PanelManager,
-  treeProvider: JsonTreeProvider
+  editorProvider: JsonLensEditorProvider,
+  filesProvider: JsonFilesProvider,
 ): void {
   ctx.subscriptions.push(
-    vscode.commands.registerCommand("jsonlens.collapseAll", () => {
-      vscode.commands.executeCommand("workbench.actions.treeView.jsonlensTree.collapseAll");
-    }),
-
     vscode.commands.registerCommand("jsonlens.copyPath", (node?: JsonNode) => {
       const target = node ?? getNodeAtCursor();
       if (!target) return;
@@ -41,59 +35,82 @@ export function registerCommands(
       vscode.window.setStatusBarMessage("Copied value", 2000);
     }),
 
+    // Reveal source: open text editor for the active JSON and highlight node range
     vscode.commands.registerCommand("jsonlens.revealInTree", () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) {
-        vscode.window.showWarningMessage("JsonLens: No active editor.");
-        return;
-      }
-      const uri = editor.document.uri.toString();
+      const uri = getActiveJsonUri(editorProvider);
+      if (!uri) { vscode.window.showWarningMessage("JsonLens: No active JSON file."); return; }
       const state = documentStore.get(uri);
-      if (!state) {
-        vscode.window.showWarningMessage("JsonLens: Document not yet parsed. Try again in a moment.");
-        return;
-      }
-      const offset = editor.document.offsetAt(editor.selection.active);
+      if (!state) { vscode.window.showWarningMessage("JsonLens: Document not yet parsed."); return; }
+      const offset = getActiveOffset(uri);
       const node = documentStore.getNodeAtOffset(uri, offset);
-      if (!node) {
-        vscode.window.setStatusBarMessage("JsonLens: No node at cursor.", 2000);
-        return;
-      }
-      treeView.reveal(node, { select: true, focus: true, expand: true }).then(
-        undefined,
-        (err) => vscode.window.showWarningMessage(`JsonLens: Reveal failed — ${err}`)
-      );
+      if (!node) { vscode.window.setStatusBarMessage("JsonLens: No node at cursor.", 2000); return; }
+
+      vscode.window.showTextDocument(vscode.Uri.parse(uri), { preview: false }).then((editor) => {
+        const start = editor.document.positionAt(node.range[0]);
+        const end   = editor.document.positionAt(node.range[1]);
+        editor.selection = new vscode.Selection(start, start);
+        editor.revealRange(
+          new vscode.Range(start, end),
+          vscode.TextEditorRevealType.InCenterIfOutsideViewport,
+        );
+      }, () => {});
     }),
 
     vscode.commands.registerCommand("jsonlens.searchTree", () =>
-      runSearch(treeView)
+      runSearch(editorProvider)
     ),
 
-    vscode.commands.registerCommand("jsonlens.openPreview", (node?: JsonNode) =>
-      openPreview(node, panelManager)
-    ),
+    vscode.commands.registerCommand("jsonlens.openPreview", (node?: JsonNode) => {
+      openPreview(node, editorProvider);
+    }),
 
-    vscode.commands.registerCommand("jsonlens.loadMore", (sentinelNode: JsonNode) => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) return;
-      const uri = editor.document.uri.toString();
-      log(`Load more at: ${pathToString(sentinelNode.path)}`);
-      handleLoadMore(sentinelNode, uri, treeProvider);
+    vscode.commands.registerCommand("jsonlens.openInJsonLens", async () => {
+      const uris = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        filters: { JSON: ["json", "jsonc"] },
+        title: "Open JSON in JsonLens",
+      });
+      if (uris?.[0]) {
+        vscode.commands.executeCommand("vscode.openWith", uris[0], JsonLensEditorProvider.viewType);
+      }
+    }),
+
+    vscode.commands.registerCommand("jsonlens.openWithPreview", (uri: vscode.Uri) => {
+      vscode.commands.executeCommand("vscode.openWith", uri, JsonLensEditorProvider.viewType);
+    }),
+
+    vscode.commands.registerCommand("jsonlens.openAsText", () => {
+      const uri = getActiveJsonUri(editorProvider);
+      if (!uri) return;
+      vscode.commands.executeCommand("vscode.openWith", vscode.Uri.parse(uri), "default");
+    }),
+
+    vscode.commands.registerCommand("jsonlens.refreshView", () => {
+      filesProvider.refresh();
+    }),
+
+    vscode.commands.registerCommand("jsonlens.collapseAll", () => {
+      vscode.commands.executeCommand("workbench.actions.treeView.jsonlensView.collapseAll");
     }),
 
     vscode.commands.registerCommand("jsonlens.analyzeFields", (node?: JsonNode) =>
-      runAnalyzeFields(node, panelManager)
+      runAnalyzeFields(node, editorProvider)
     ),
+
     vscode.commands.registerCommand("jsonlens.inferSchema", (node?: JsonNode) =>
-      runInferSchema(node, panelManager)
+      runInferSchema(node, editorProvider)
     ),
+
     vscode.commands.registerCommand("jsonlens.exportSchema", () => {
-      // Export is initiated from the webview; this command is a no-op stub kept for package.json
-    })
+      // Export is initiated from the webview via schema.export message; stub kept for package.json
+    }),
   );
 }
 
-async function runInferSchema(node: JsonNode | undefined, panelManager: PanelManager): Promise<void> {
+async function runInferSchema(
+  node: JsonNode | undefined,
+  editorProvider: JsonLensEditorProvider,
+): Promise<void> {
   const target = node ?? getNodeAtCursor();
   if (!target) {
     vscode.window.showWarningMessage("JsonLens: Select an object or array node to infer schema.");
@@ -103,29 +120,32 @@ async function runInferSchema(node: JsonNode | undefined, panelManager: PanelMan
     vscode.window.showWarningMessage("JsonLens: Schema inference requires an object or array node.");
     return;
   }
-
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) return;
-  const uri = editor.document.uri.toString();
+  const uri = getActiveJsonUri(editorProvider);
+  if (!uri) return;
   const state = documentStore.get(uri);
   if (!state) return;
 
-  panelManager.getOrCreate();
-  panelManager.send({ type: "node.loading" });
-
+  if (!editorProvider.panels.has(uri)) {
+    await vscode.commands.executeCommand("vscode.openWith", vscode.Uri.parse(uri), JsonLensEditorProvider.viewType);
+    return;
+  }
+  editorProvider.send(uri, { type: "node.loading" });
   try {
     const payload = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Window, title: "JsonLens: Inferring schema…" },
-      () => inferSchemaNode(target, state.rawText)
+      () => inferSchemaNode(target, state.rawText),
     );
     log(`Schema: ${payload.stats.nodeCount} nodes`);
-    panelManager.send({ type: "schema.result", payload });
+    editorProvider.send(uri, { type: "schema.result", payload });
   } catch (err) {
-    panelManager.send({ type: "error", payload: { message: `Schema inference failed: ${err}` } });
+    editorProvider.send(uri, { type: "error", payload: { message: `Schema inference failed: ${err}` } });
   }
 }
 
-async function runAnalyzeFields(node: JsonNode | undefined, panelManager: PanelManager): Promise<void> {
+async function runAnalyzeFields(
+  node: JsonNode | undefined,
+  editorProvider: JsonLensEditorProvider,
+): Promise<void> {
   const target = node ?? getNodeAtCursor();
   if (!target) {
     vscode.window.showWarningMessage("JsonLens: Select an array node to analyze.");
@@ -135,48 +155,45 @@ async function runAnalyzeFields(node: JsonNode | undefined, panelManager: PanelM
     vscode.window.showWarningMessage("JsonLens: Field analysis requires an array node.");
     return;
   }
-
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) return;
-  const uri = editor.document.uri.toString();
+  const uri = getActiveJsonUri(editorProvider);
+  if (!uri) return;
   const state = documentStore.get(uri);
   if (!state) return;
 
-  panelManager.getOrCreate();
-  panelManager.send({ type: "node.loading" });
-
+  if (!editorProvider.panels.has(uri)) {
+    await vscode.commands.executeCommand("vscode.openWith", vscode.Uri.parse(uri), JsonLensEditorProvider.viewType);
+    return;
+  }
+  editorProvider.send(uri, { type: "node.loading" });
   try {
     const payload = await vscode.window.withProgress(
       { location: vscode.ProgressLocation.Window, title: "JsonLens: Analyzing fields…" },
-      () => analyzeArrayNode(target, state.rawText)
+      () => analyzeArrayNode(target, state.rawText),
     );
     log(`Analysis: ${payload.rows.length} keys, ${payload.totalItems} items`);
-    panelManager.send({ type: "analysis.result", payload });
+    editorProvider.send(uri, { type: "analysis.result", payload });
   } catch (err) {
-    panelManager.send({ type: "error", payload: { message: `Analysis failed: ${err}` } });
+    editorProvider.send(uri, { type: "error", payload: { message: `Analysis failed: ${err}` } });
   }
 }
 
-function openPreview(node: JsonNode | undefined, panelManager: PanelManager): void {
+function openPreview(node: JsonNode | undefined, editorProvider: JsonLensEditorProvider): void {
+  const uri = getActiveJsonUri(editorProvider);
+  if (!uri) return;
+  vscode.commands.executeCommand("vscode.openWith", vscode.Uri.parse(uri), JsonLensEditorProvider.viewType);
   const target = node ?? getNodeAtCursor();
-  if (!target) {
-    panelManager.getOrCreate();
-    return;
+  if (target) {
+    setTimeout(() => {
+      editorProvider.send(uri, { type: "node.selected", payload: buildNodePayload(target) });
+    }, 300);
   }
-  panelManager.getOrCreate();
-  panelManager.send({ type: "node.selected", payload: buildNodePayload(target) });
 }
 
-async function runSearch(treeView: vscode.TreeView<JsonNode>): Promise<void> {
-  const editor = vscode.window.activeTextEditor;
-  if (!editor) return;
-
-  const uri = editor.document.uri.toString();
+async function runSearch(editorProvider: JsonLensEditorProvider): Promise<void> {
+  const uri = getActiveJsonUri(editorProvider);
+  if (!uri) return;
   const state = documentStore.get(uri);
-  if (!state) {
-    vscode.window.showWarningMessage("JsonLens: No parsed document.");
-    return;
-  }
+  if (!state) { vscode.window.showWarningMessage("JsonLens: No parsed document."); return; }
 
   if (!state.searchIndex || state.searchIndex.builtAtVersion !== state.version) {
     await vscode.window.withProgress(
@@ -184,7 +201,7 @@ async function runSearch(treeView: vscode.TreeView<JsonNode>): Promise<void> {
       async () => {
         state.searchIndex = await buildIndex(state.root, state.version);
         log(`Index: ${state.searchIndex.keys.size} keys, ${state.searchIndex.values.size} values`);
-      }
+      },
     );
   }
 
@@ -195,7 +212,6 @@ async function runSearch(treeView: vscode.TreeView<JsonNode>): Promise<void> {
   qp.matchOnDetail = true;
 
   let debounce: ReturnType<typeof setTimeout> | undefined;
-
   qp.onDidChangeValue((value) => {
     clearTimeout(debounce);
     debounce = setTimeout(() => { qp.items = runQuery(index, value); }, 150);
@@ -205,7 +221,7 @@ async function runSearch(treeView: vscode.TreeView<JsonNode>): Promise<void> {
     const sel = qp.selectedItems[0];
     if (!sel) return;
     qp.hide();
-    navigateTo(sel.match, uri, editor, treeView);
+    navigateTo(sel.match, uri, editorProvider);
   });
 
   qp.onDidHide(() => qp.dispose());
@@ -217,7 +233,6 @@ function runQuery(index: SearchIndex, input: string): SearchQuickPickItem[] {
   let q = input;
   if (input.startsWith("k:")) { scope = "keys"; q = input.slice(2); }
   else if (input.startsWith("v:")) { scope = "values"; q = input.slice(2); }
-
   return query(index, q, scope).map((m) => ({
     label: m.label,
     description: m.pathStr,
@@ -229,16 +244,27 @@ function runQuery(index: SearchIndex, input: string): SearchQuickPickItem[] {
 function navigateTo(
   match: SearchMatch,
   uri: string,
-  editor: vscode.TextEditor,
-  treeView: vscode.TreeView<JsonNode>
+  editorProvider: JsonLensEditorProvider,
 ): void {
   const node = documentStore.getNodeAtPath(uri, match.path);
   if (!node) return;
-  const startPos = editor.document.positionAt(node.range[0]);
-  const endPos = editor.document.positionAt(node.range[1]);
-  editor.selection = new vscode.Selection(startPos, startPos);
-  editor.revealRange(new vscode.Range(startPos, endPos), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
-  treeView.reveal(node, { select: true, focus: false, expand: true }).then(undefined, () => {});
+
+  // Update custom editor webview if open
+  editorProvider.send(uri, { type: "node.selected", payload: buildNodePayload(node) });
+
+  // Also navigate text editor if visible
+  const editor = vscode.window.visibleTextEditors.find(
+    (e) => e.document.uri.toString() === uri
+  );
+  if (editor) {
+    const startPos = editor.document.positionAt(node.range[0]);
+    const endPos   = editor.document.positionAt(node.range[1]);
+    editor.selection = new vscode.Selection(startPos, startPos);
+    editor.revealRange(
+      new vscode.Range(startPos, endPos),
+      vscode.TextEditorRevealType.InCenterIfOutsideViewport,
+    );
+  }
 }
 
 interface SearchQuickPickItem extends vscode.QuickPickItem {
@@ -250,6 +276,22 @@ function getNodeAtCursor(): JsonNode | null {
   if (!editor) return null;
   return documentStore.getNodeAtOffset(
     editor.document.uri.toString(),
-    editor.document.offsetAt(editor.selection.active)
+    editor.document.offsetAt(editor.selection.active),
   );
+}
+
+function getActiveJsonUri(editorProvider: JsonLensEditorProvider): string | undefined {
+  const editor = vscode.window.activeTextEditor;
+  if (editor && (editor.document.languageId === "json" || editor.document.languageId === "jsonc")) {
+    return editor.document.uri.toString();
+  }
+  return editorProvider.activeUri;
+}
+
+function getActiveOffset(uri: string): number {
+  const editor = vscode.window.visibleTextEditors.find(
+    (e) => e.document.uri.toString() === uri
+  );
+  if (editor) return editor.document.offsetAt(editor.selection.active);
+  return 0;
 }

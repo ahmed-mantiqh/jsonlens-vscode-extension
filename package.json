@@ -14,6 +14,9 @@
   "activationEvents": [
     "onLanguage:json",
     "onLanguage:jsonc",
+    "onView:jsonlensView",
+    "onCustomEditor:jsonlens.preview",
+    "onCommand:jsonlens.openInJsonLens",
     "onCommand:jsonlens.revealInTree",
     "onCommand:jsonlens.copyPath",
     "onCommand:jsonlens.searchTree",
@@ -21,16 +24,34 @@
   ],
   "main": "./out/extension.js",
   "contributes": {
-    "views": {
-      "explorer": [
+    "viewsContainers": {
+      "activitybar": [
         {
-          "id": "jsonlensTree",
-          "name": "JSON Lens",
-          "when": "resourceLangId == json || resourceLangId == jsonc",
-          "icon": "$(json)"
+          "id": "jsonlens",
+          "title": "JsonLens",
+          "icon": "media/icon.svg"
         }
       ]
     },
+    "views": {
+      "jsonlens": [
+        {
+          "id": "jsonlensView",
+          "name": "JsonLens"
+        }
+      ]
+    },
+    "customEditors": [
+      {
+        "viewType": "jsonlens.preview",
+        "displayName": "JsonLens Preview",
+        "selector": [
+          { "filenamePattern": "*.json" },
+          { "filenamePattern": "*.jsonc" }
+        ],
+        "priority": "option"
+      }
+    ],
     "commands": [
       {
         "command": "jsonlens.collapseAll",
@@ -47,7 +68,7 @@
       },
       {
         "command": "jsonlens.revealInTree",
-        "title": "JsonLens: Reveal in Tree"
+        "title": "JsonLens: Reveal Source"
       },
       {
         "command": "jsonlens.openPreview",
@@ -69,6 +90,24 @@
       {
         "command": "jsonlens.exportSchema",
         "title": "JsonLens: Export Schema"
+      },
+      {
+        "command": "jsonlens.openInJsonLens",
+        "title": "JsonLens: Open JSON in JsonLens…",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "jsonlens.openWithPreview",
+        "title": "JsonLens: Open with Preview"
+      },
+      {
+        "command": "jsonlens.openAsText",
+        "title": "JsonLens: Open as Text"
+      },
+      {
+        "command": "jsonlens.refreshView",
+        "title": "JsonLens: Refresh",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -82,29 +121,34 @@
           "command": "jsonlens.revealInTree",
           "when": "resourceLangId == json || resourceLangId == jsonc",
           "group": "jsonlens@2"
+        },
+        {
+          "command": "jsonlens.openPreview",
+          "when": "resourceLangId == json || resourceLangId == jsonc",
+          "group": "jsonlens@3"
         }
       ],
       "view/item/context": [
         {
-          "command": "jsonlens.copyPath",
-          "when": "view == jsonlensTree",
-          "group": "jsonlens@1"
+          "command": "jsonlens.openWithPreview",
+          "when": "view == jsonlensView && viewItem == jsonFile",
+          "group": "inline@1"
         },
         {
-          "command": "jsonlens.copyValue",
-          "when": "view == jsonlensTree",
-          "group": "jsonlens@2"
+          "command": "jsonlens.openAsText",
+          "when": "view == jsonlensView && viewItem == jsonFile",
+          "group": "jsonlens@1"
         }
       ],
       "view/title": [
         {
-          "command": "jsonlens.searchTree",
-          "when": "view == jsonlensTree",
+          "command": "jsonlens.openInJsonLens",
+          "when": "view == jsonlensView",
           "group": "navigation@1"
         },
         {
-          "command": "jsonlens.collapseAll",
-          "when": "view == jsonlensTree",
+          "command": "jsonlens.refreshView",
+          "when": "view == jsonlensView",
           "group": "navigation@2"
         }
       ]
