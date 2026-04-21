@@ -12,6 +12,8 @@ import { buildNodePayload } from "./webview/node-payload.js";
 import { stringToPath } from "./core/path-utils.js";
 import { analyzeArrayNode } from "./analysis/field-analyzer.js";
 import { inferSchemaNode } from "./analysis/schema-inferrer.js";
+import { parseLargeAsync } from "./performance/stream-parser.js";
+import { clearPageState } from "./performance/virtual-list.js";
 import type { JsonNode } from "./core/tree-node.js";
 
 const SUPPORTED = new Set(["json", "jsonc"]);
@@ -32,7 +34,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
   });
   ctx.subscriptions.push(treeView);
 
-  registerCommands(ctx, treeView, panelManager);
+  registerCommands(ctx, treeView, panelManager, provider);
   createIncrementalUpdater(provider, ctx);
 
   ctx.subscriptions.push(
@@ -144,7 +146,9 @@ export function activate(ctx: vscode.ExtensionContext): void {
 
   ctx.subscriptions.push(
     vscode.workspace.onDidCloseTextDocument((doc) => {
-      documentStore.invalidate(doc.uri.toString());
+      const uri = doc.uri.toString();
+      documentStore.invalidate(uri);
+      clearPageState(uri);
     })
   );
 
@@ -178,9 +182,11 @@ async function loadDocument(doc: vscode.TextDocument, provider: JsonTreeProvider
   log(`Parsing ${uri} (${(byteLength / 1024).toFixed(0)} KB, tier=${tier})`);
 
   try {
-    const { root, errors } = await timeAsync(`parse:${tier}`, () =>
-      Promise.resolve(parseDocument(text, tier))
-    );
+    const parseResult = tier === "large"
+      ? await timeAsync(`parse:worker`, () => parseLargeAsync(text))
+      : await timeAsync(`parse:${tier}`, () => Promise.resolve(parseDocument(text, tier)));
+
+    const { root, errors } = parseResult;
     documentStore.set(uri, {
       uri, version: doc.version, root, rawText: text,
       parseErrors: errors, lastAccessedAt: Date.now(), isLarge: tier !== "small",

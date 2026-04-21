@@ -16,14 +16,16 @@ Promise.all([
   esbuild.context({ ...sharedOpts, entryPoints: ["src/extension.ts"],                          outfile: "out/extension.js" }),
   esbuild.context({ ...sharedOpts, entryPoints: ["src/workers/analysis-worker.ts"],             outfile: "out/workers/analysis-worker.js" }),
   esbuild.context({ ...sharedOpts, entryPoints: ["src/workers/schema-worker.ts"],               outfile: "out/workers/schema-worker.js" }),
-]).then(async ([extCtx, analysisCtx, schemaCtx]) => {
+  esbuild.context({ ...sharedOpts, entryPoints: ["src/workers/parse-worker.ts"],                outfile: "out/workers/parse-worker.js" }),
+]).then(async ([extCtx, analysisCtx, schemaCtx, parseCtx]) => {
   if (watch) {
     await extCtx.watch();
     await analysisCtx.watch();
     await schemaCtx.watch();
+    await parseCtx.watch();
     console.log("Watching...");
   } else {
-    for (const ctx of [extCtx, analysisCtx, schemaCtx]) {
+    for (const ctx of [extCtx, analysisCtx, schemaCtx, parseCtx]) {
       await ctx.rebuild();
       await ctx.dispose();
     }

@@ -14,7 +14,34 @@ export interface ParsedDocumentState {
 }
 
 const MAX_ENTRIES = 5;
+const IDLE_EVICT_MS = 60_000;       // evict deep children after 60s idle
+const IDLE_EVICT_INTERVAL_MS = 30_000;
 const store = new Map<string, ParsedDocumentState>();
+
+// Periodically unload deep children (depth ≥ 2) that haven't been accessed recently.
+// Top-level children are kept so the tree sidebar remains usable.
+const evictTimer = setInterval(() => {
+  const now = Date.now();
+  for (const state of store.values()) {
+    if (now - state.lastAccessedAt > IDLE_EVICT_MS) {
+      evictDeepChildren(state.root, 0);
+    }
+  }
+}, IDLE_EVICT_INTERVAL_MS);
+evictTimer.unref?.(); // don't keep Node.js process alive
+
+function evictDeepChildren(node: JsonNode, depth: number): void {
+  if (!node.children) return;
+  if (depth >= 1) {
+    // Unload this node's children (they can be re-loaded on expand)
+    node.loaded = false;
+    node.children = undefined;
+    return;
+  }
+  for (const child of node.children) {
+    evictDeepChildren(child, depth + 1);
+  }
+}
 
 export function get(uri: string): ParsedDocumentState | undefined {
   const state = store.get(uri);

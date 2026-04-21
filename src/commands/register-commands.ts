@@ -6,6 +6,8 @@ import { buildIndex, query, type SearchIndex, type SearchMatch } from "../search
 import { buildNodePayload } from "../webview/node-payload.js";
 import { analyzeArrayNode } from "../analysis/field-analyzer.js";
 import { inferSchemaNode } from "../analysis/schema-inferrer.js";
+import { handleLoadMore } from "../performance/virtual-list.js";
+import type { JsonTreeProvider } from "../tree/json-tree-provider.js";
 import type { PanelManager } from "../webview/panel-manager.js";
 import { log } from "../utils/logger.js";
 
@@ -14,7 +16,8 @@ type SearchScope = "keys" | "values" | "both";
 export function registerCommands(
   ctx: vscode.ExtensionContext,
   treeView: vscode.TreeView<JsonNode>,
-  panelManager: PanelManager
+  panelManager: PanelManager,
+  treeProvider: JsonTreeProvider
 ): void {
   ctx.subscriptions.push(
     vscode.commands.registerCommand("jsonlens.collapseAll", () => {
@@ -57,7 +60,11 @@ export function registerCommands(
     ),
 
     vscode.commands.registerCommand("jsonlens.loadMore", (sentinelNode: JsonNode) => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return;
+      const uri = editor.document.uri.toString();
       log(`Load more at: ${pathToString(sentinelNode.path)}`);
+      handleLoadMore(sentinelNode, uri, treeProvider);
     }),
 
     vscode.commands.registerCommand("jsonlens.analyzeFields", (node?: JsonNode) =>

@@ -144,6 +144,7 @@
     "@types/node": "^20.0.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "@types/stream-json": "^1.7.8",
     "@types/vscode": "^1.85.0",
     "ajv": "^8.18.0",
     "esbuild": "^0.20.0",
@@ -153,6 +154,7 @@
   "dependencies": {
     "jsonc-parser": "^3.2.1",
     "react": "^19.2.5",
-    "react-dom": "^19.2.5"
+    "react-dom": "^19.2.5",
+    "stream-json": "^2.1.0"
   }
 }
