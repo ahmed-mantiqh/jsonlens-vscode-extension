@@ -6,9 +6,11 @@ import { initLogger, timeAsync, log } from "./utils/logger.js";
 import { JsonTreeProvider } from "./tree/json-tree-provider.js";
 import { registerCommands } from "./commands/register-commands.js";
 import { createIncrementalUpdater } from "./performance/incremental-updater.js";
+import { BreadcrumbProvider } from "./search/breadcrumb-provider.js";
+import type { JsonNode } from "./core/tree-node.js";
 
 const SUPPORTED_LANGUAGES = new Set(["json", "jsonc"]);
-let treeView: vscode.TreeView<import("./core/tree-node.js").JsonNode> | undefined;
+let treeView: vscode.TreeView<JsonNode> | undefined;
 let selectionSyncDebounce: ReturnType<typeof setTimeout> | undefined;
 
 export function activate(ctx: vscode.ExtensionContext): void {
@@ -24,16 +26,21 @@ export function activate(ctx: vscode.ExtensionContext): void {
   });
   ctx.subscriptions.push(treeView);
 
-  registerCommands(ctx, provider, treeView);
+  registerCommands(ctx, treeView);
   createIncrementalUpdater(provider, ctx);
 
-  // Load active document on activation
+  ctx.subscriptions.push(
+    vscode.languages.registerDocumentSymbolProvider(
+      [{ language: "json" }, { language: "jsonc" }],
+      new BreadcrumbProvider()
+    )
+  );
+
   const activeEditor = vscode.window.activeTextEditor;
   if (activeEditor && SUPPORTED_LANGUAGES.has(activeEditor.document.languageId)) {
     loadDocument(activeEditor.document, provider);
   }
 
-  // Switch tree when active editor changes
   ctx.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor((editor) => {
       if (!editor || !SUPPORTED_LANGUAGES.has(editor.document.languageId)) {
@@ -50,11 +57,9 @@ export function activate(ctx: vscode.ExtensionContext): void {
     })
   );
 
-  // Open new documents
   ctx.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((doc) => {
       if (!SUPPORTED_LANGUAGES.has(doc.languageId)) return;
-      // Only parse if this doc is currently active (avoid background parse on all open docs)
       const active = vscode.window.activeTextEditor;
       if (active?.document.uri.toString() === doc.uri.toString()) {
         loadDocument(doc, provider);
@@ -62,14 +67,12 @@ export function activate(ctx: vscode.ExtensionContext): void {
     })
   );
 
-  // Close: evict from store
   ctx.subscriptions.push(
     vscode.workspace.onDidCloseTextDocument((doc) => {
       documentStore.invalidate(doc.uri.toString());
     })
   );
 
-  // Cursor sync: editor selection → tree reveal (debounced 200ms)
   ctx.subscriptions.push(
     vscode.window.onDidChangeTextEditorSelection((event) => {
       const editor = event.textEditor;
@@ -84,7 +87,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
         if (node && treeView) {
           treeView.reveal(node, { select: true, focus: false, expand: false }).then(
             undefined,
-            () => {} // ignore reveal errors (node not yet visible)
+            () => {}
           );
         }
       }, 200);
@@ -121,6 +124,7 @@ async function loadDocument(
       parseErrors: errors,
       lastAccessedAt: Date.now(),
       isLarge: tier !== "small",
+      // searchIndex built lazily on first search
     });
 
     provider.setDocument(uri);

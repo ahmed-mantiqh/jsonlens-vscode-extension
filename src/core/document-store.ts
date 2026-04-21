@@ -1,4 +1,5 @@
 import type { JsonNode, ParseError, Path } from "./tree-node.js";
+import type { SearchIndex } from "../search/searcher.js";
 import { pathEquals, isAncestor } from "./path-utils.js";
 
 export interface ParsedDocumentState {
@@ -8,6 +9,7 @@ export interface ParsedDocumentState {
   rawText: string;
   parseErrors: ParseError[];
   lastAccessedAt: number;
+  searchIndex?: SearchIndex;
   isLarge: boolean;
 }
 

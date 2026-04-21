@@ -2,12 +2,13 @@ import * as vscode from "vscode";
 import type { JsonNode } from "../core/tree-node.js";
 import * as documentStore from "../core/document-store.js";
 import { pathToString } from "../core/path-utils.js";
+import { buildIndex, query, type SearchIndex, type SearchMatch } from "../search/searcher.js";
 import { log } from "../utils/logger.js";
-import type { JsonTreeProvider } from "../tree/json-tree-provider.js";
+
+type SearchScope = "keys" | "values" | "both";
 
 export function registerCommands(
   ctx: vscode.ExtensionContext,
-  provider: JsonTreeProvider,
   treeView: vscode.TreeView<JsonNode>
 ): void {
   ctx.subscriptions.push(
@@ -25,12 +26,13 @@ export function registerCommands(
 
     vscode.commands.registerCommand("jsonlens.copyValue", (node?: JsonNode) => {
       if (!node) return;
-      const value =
-        node.value !== undefined
-          ? JSON.stringify(node.value)
-          : `[${node.type}]`;
-      vscode.env.clipboard.writeText(value);
-      vscode.window.setStatusBarMessage(`Copied value`, 2000);
+      const text = node.value !== undefined
+        ? JSON.stringify(node.value)
+        : node.type === "object" || node.type === "array"
+          ? `[${node.type}]`
+          : "null";
+      vscode.env.clipboard.writeText(text);
+      vscode.window.setStatusBarMessage("Copied value", 2000);
     }),
 
     vscode.commands.registerCommand("jsonlens.revealInTree", () => {
@@ -40,22 +42,24 @@ export function registerCommands(
       const offset = editor.document.offsetAt(editor.selection.active);
       const node = documentStore.getNodeAtOffset(uri, offset);
       if (node) {
-        treeView.reveal(node, { select: true, focus: true, expand: true });
+        treeView.reveal(node, { select: true, focus: true, expand: true }).then(
+          undefined,
+          () => {}
+        );
       }
     }),
 
+    vscode.commands.registerCommand("jsonlens.searchTree", () =>
+      runSearch(treeView)
+    ),
+
     vscode.commands.registerCommand("jsonlens.loadMore", (sentinelNode: JsonNode) => {
-      // Phase 6 will implement true pagination; for now triggers a provider refresh
-      log(`Load more requested at path: ${pathToString(sentinelNode.path)}`);
-      provider.refresh(sentinelNode);
+      log(`Load more at: ${pathToString(sentinelNode.path)}`);
     }),
 
-    // Stubs for later phases
+    // Phase 3+ stubs
     vscode.commands.registerCommand("jsonlens.openPreview", () => {
       vscode.window.showInformationMessage("JsonLens: Preview coming in Phase 3.");
-    }),
-    vscode.commands.registerCommand("jsonlens.searchTree", () => {
-      vscode.window.showInformationMessage("JsonLens: Search coming in Phase 2.");
     }),
     vscode.commands.registerCommand("jsonlens.analyzeFields", () => {
       vscode.window.showInformationMessage("JsonLens: Field analysis coming in Phase 4.");
@@ -69,10 +73,114 @@ export function registerCommands(
   );
 }
 
+async function runSearch(treeView: vscode.TreeView<JsonNode>): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+
+  const uri = editor.document.uri.toString();
+  const state = documentStore.get(uri);
+  if (!state) {
+    vscode.window.showWarningMessage("JsonLens: No parsed document.");
+    return;
+  }
+
+  // Build index lazily on first search
+  if (!state.searchIndex || state.searchIndex.builtAtVersion !== state.version) {
+    await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Window, title: "JsonLens: Building search index…" },
+      async () => {
+        state.searchIndex = await buildIndex(state.root, state.version);
+        log(`Search index built: ${state.searchIndex.keys.size} keys, ${state.searchIndex.values.size} values`);
+      }
+    );
+  }
+
+  const index = state.searchIndex!;
+  const scope: SearchScope = "both";
+
+  const qp = vscode.window.createQuickPick<SearchQuickPickItem>();
+  qp.placeholder = "Search keys and values… (prefix with 'k:' for keys only, 'v:' for values)";
+  qp.matchOnDescription = true;
+  qp.matchOnDetail = true;
+
+  let debounce: ReturnType<typeof setTimeout> | undefined;
+
+  qp.onDidChangeValue((value) => {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => {
+      qp.items = runQuery(index, value, scope);
+    }, 150);
+  });
+
+  qp.onDidAccept(() => {
+    const selected = qp.selectedItems[0];
+    if (!selected) return;
+    qp.hide();
+    navigateTo(selected.match, uri, editor, treeView);
+  });
+
+  qp.onDidHide(() => qp.dispose());
+  qp.show();
+}
+
+function runQuery(
+  index: SearchIndex,
+  input: string,
+  defaultScope: SearchScope
+): SearchQuickPickItem[] {
+  let scope: SearchScope = defaultScope;
+  let q = input;
+
+  if (input.startsWith("k:")) {
+    scope = "keys";
+    q = input.slice(2);
+  } else if (input.startsWith("v:")) {
+    scope = "values";
+    q = input.slice(2);
+  }
+
+  const matches = query(index, q, scope);
+
+  return matches.map((m) => ({
+    label: m.label,
+    description: m.pathStr,
+    detail: m.valuePreview || undefined,
+    match: m,
+  }));
+}
+
+function navigateTo(
+  match: SearchMatch,
+  uri: string,
+  editor: vscode.TextEditor,
+  treeView: vscode.TreeView<JsonNode>
+): void {
+  const node = documentStore.getNodeAtPath(uri, match.path);
+  if (!node) return;
+
+  const startPos = editor.document.positionAt(node.range[0]);
+  const endPos = editor.document.positionAt(node.range[1]);
+  editor.selection = new vscode.Selection(startPos, startPos);
+  editor.revealRange(
+    new vscode.Range(startPos, endPos),
+    vscode.TextEditorRevealType.InCenterIfOutsideViewport
+  );
+
+  treeView.reveal(node, { select: true, focus: false, expand: true }).then(
+    undefined,
+    () => {}
+  );
+}
+
+interface SearchQuickPickItem extends vscode.QuickPickItem {
+  match: SearchMatch;
+}
+
 function getNodeAtCursor(): JsonNode | null {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return null;
-  const uri = editor.document.uri.toString();
-  const offset = editor.document.offsetAt(editor.selection.active);
-  return documentStore.getNodeAtOffset(uri, offset);
+  return documentStore.getNodeAtOffset(
+    editor.document.uri.toString(),
+    editor.document.offsetAt(editor.selection.active)
+  );
 }
