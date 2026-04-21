@@ -10,6 +10,10 @@ const sharedOpts = {
   target: "node18",
   sourcemap: true,
   minify: false,
+  // Prefer ESM entry points so esbuild can tree-shake and fully inline modules
+  // like jsonc-parser (whose UMD build uses AMD define() with unresolved relative paths)
+  mainFields: ["module", "main"],
+  conditions: ["import", "require"],
 };
 
 Promise.all([

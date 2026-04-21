@@ -13,7 +13,11 @@
   ],
   "activationEvents": [
     "onLanguage:json",
-    "onLanguage:jsonc"
+    "onLanguage:jsonc",
+    "onCommand:jsonlens.revealInTree",
+    "onCommand:jsonlens.copyPath",
+    "onCommand:jsonlens.searchTree",
+    "onCommand:jsonlens.openPreview"
   ],
   "main": "./out/extension.js",
   "contributes": {

@@ -43,12 +43,26 @@ export function registerCommands(
 
     vscode.commands.registerCommand("jsonlens.revealInTree", () => {
       const editor = vscode.window.activeTextEditor;
-      if (!editor) return;
-      const node = documentStore.getNodeAtOffset(
-        editor.document.uri.toString(),
-        editor.document.offsetAt(editor.selection.active)
+      if (!editor) {
+        vscode.window.showWarningMessage("JsonLens: No active editor.");
+        return;
+      }
+      const uri = editor.document.uri.toString();
+      const state = documentStore.get(uri);
+      if (!state) {
+        vscode.window.showWarningMessage("JsonLens: Document not yet parsed. Try again in a moment.");
+        return;
+      }
+      const offset = editor.document.offsetAt(editor.selection.active);
+      const node = documentStore.getNodeAtOffset(uri, offset);
+      if (!node) {
+        vscode.window.setStatusBarMessage("JsonLens: No node at cursor.", 2000);
+        return;
+      }
+      treeView.reveal(node, { select: true, focus: true, expand: true }).then(
+        undefined,
+        (err) => vscode.window.showWarningMessage(`JsonLens: Reveal failed — ${err}`)
       );
-      if (node) treeView.reveal(node, { select: true, focus: true, expand: true }).then(undefined, () => {});
     }),
 
     vscode.commands.registerCommand("jsonlens.searchTree", () =>
