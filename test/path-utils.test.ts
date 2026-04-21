@@ -6,6 +6,7 @@ import {
   pathEquals,
   isAncestor,
   pathToSegments,
+  stringToPath,
 } from "../src/core/path-utils.js";
 
 describe("pathToString", () => {
@@ -43,6 +44,14 @@ describe("isAncestor", () => {
   it("same path is not ancestor", () => expect(isAncestor(["a", "b"], ["a", "b"])).toBe(false));
   it("sibling is not ancestor", () => expect(isAncestor(["a", "x"], ["a", "b"])).toBe(false));
   it("root is ancestor of everything", () => expect(isAncestor([], ["a"])).toBe(true));
+});
+
+describe("stringToPath", () => {
+  it("root", () => expect(stringToPath("$")).toEqual([]));
+  it("simple keys", () => expect(stringToPath("$.users.name")).toEqual(["users", "name"]));
+  it("array index", () => expect(stringToPath("$.users[0].email")).toEqual(["users", 0, "email"]));
+  it("bracket string key", () => expect(stringToPath('$["a.b"]')).toEqual(["a.b"]));
+  it("empty = []", () => expect(stringToPath("")).toEqual([]));
 });
 
 describe("pathToSegments", () => {

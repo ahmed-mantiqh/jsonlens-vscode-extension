@@ -7,9 +7,12 @@ import { JsonTreeProvider } from "./tree/json-tree-provider.js";
 import { registerCommands } from "./commands/register-commands.js";
 import { createIncrementalUpdater } from "./performance/incremental-updater.js";
 import { BreadcrumbProvider } from "./search/breadcrumb-provider.js";
+import { PanelManager } from "./webview/panel-manager.js";
+import { buildNodePayload } from "./webview/node-payload.js";
+import { stringToPath } from "./core/path-utils.js";
 import type { JsonNode } from "./core/tree-node.js";
 
-const SUPPORTED_LANGUAGES = new Set(["json", "jsonc"]);
+const SUPPORTED = new Set(["json", "jsonc"]);
 let treeView: vscode.TreeView<JsonNode> | undefined;
 let selectionSyncDebounce: ReturnType<typeof setTimeout> | undefined;
 
@@ -18,6 +21,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
   log("Activating JsonLens");
 
   const provider = new JsonTreeProvider();
+  const panelManager = new PanelManager(ctx);
 
   treeView = vscode.window.createTreeView("jsonlensTree", {
     treeDataProvider: provider,
@@ -26,7 +30,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
   });
   ctx.subscriptions.push(treeView);
 
-  registerCommands(ctx, treeView);
+  registerCommands(ctx, treeView, panelManager);
   createIncrementalUpdater(provider, ctx);
 
   ctx.subscriptions.push(
@@ -36,20 +40,61 @@ export function activate(ctx: vscode.ExtensionContext): void {
     )
   );
 
+  // Tree selection → webview
+  ctx.subscriptions.push(
+    treeView.onDidChangeSelection((e) => {
+      if (!panelManager.isOpen()) return;
+      const node = e.selection[0];
+      if (!node) return;
+      panelManager.send({ type: "node.selected", payload: buildNodePayload(node) });
+    })
+  );
+
+  // Webview → extension messages
+  panelManager.onMessage((msg) => {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) return;
+    const uri = editor.document.uri.toString();
+
+    if (msg.type === "navigate.path") {
+      const path = stringToPath(msg.payload.path);
+      const node = documentStore.getNodeAtPath(uri, path);
+      if (node && treeView) {
+        treeView.reveal(node, { select: true, focus: false, expand: true }).then(undefined, () => {});
+        const pos = editor.document.positionAt(node.range[0]);
+        editor.selection = new vscode.Selection(pos, pos);
+        editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+      }
+    } else if (msg.type === "copy.value") {
+      const path = stringToPath(msg.payload.path);
+      const node = documentStore.getNodeAtPath(uri, path);
+      if (node) {
+        const text = node.value !== undefined ? JSON.stringify(node.value) : `[${node.type}]`;
+        vscode.env.clipboard.writeText(text);
+        vscode.window.setStatusBarMessage("Copied value", 2000);
+      }
+    } else if (msg.type === "open.url") {
+      vscode.env.openExternal(vscode.Uri.parse(msg.payload.url));
+    } else if (msg.type === "ready") {
+      // Re-send current selection on webview ready (panel reload/reveal)
+      const sel = treeView?.selection[0];
+      const node = sel ?? getNodeAtCursor(editor);
+      if (node) panelManager.send({ type: "node.selected", payload: buildNodePayload(node) });
+    }
+  });
+
   const activeEditor = vscode.window.activeTextEditor;
-  if (activeEditor && SUPPORTED_LANGUAGES.has(activeEditor.document.languageId)) {
+  if (activeEditor && SUPPORTED.has(activeEditor.document.languageId)) {
     loadDocument(activeEditor.document, provider);
   }
 
   ctx.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor((editor) => {
-      if (!editor || !SUPPORTED_LANGUAGES.has(editor.document.languageId)) {
-        provider.setDocument("");
-        return;
+      if (!editor || !SUPPORTED.has(editor.document.languageId)) {
+        provider.setDocument(""); return;
       }
       const uri = editor.document.uri.toString();
-      const cached = documentStore.get(uri);
-      if (cached) {
+      if (documentStore.get(uri)) {
         provider.setDocument(uri);
       } else {
         loadDocument(editor.document, provider);
@@ -59,7 +104,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
 
   ctx.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((doc) => {
-      if (!SUPPORTED_LANGUAGES.has(doc.languageId)) return;
+      if (!SUPPORTED.has(doc.languageId)) return;
       const active = vscode.window.activeTextEditor;
       if (active?.document.uri.toString() === doc.uri.toString()) {
         loadDocument(doc, provider);
@@ -76,7 +121,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
   ctx.subscriptions.push(
     vscode.window.onDidChangeTextEditorSelection((event) => {
       const editor = event.textEditor;
-      if (!SUPPORTED_LANGUAGES.has(editor.document.languageId)) return;
+      if (!SUPPORTED.has(editor.document.languageId)) return;
       if (!treeView?.visible) return;
 
       clearTimeout(selectionSyncDebounce);
@@ -85,27 +130,18 @@ export function activate(ctx: vscode.ExtensionContext): void {
         const offset = editor.document.offsetAt(event.selections[0].active);
         const node = documentStore.getNodeAtOffset(uri, offset);
         if (node && treeView) {
-          treeView.reveal(node, { select: true, focus: false, expand: false }).then(
-            undefined,
-            () => {}
-          );
+          treeView.reveal(node, { select: true, focus: false, expand: false }).then(undefined, () => {});
         }
       }, 200);
     })
   );
 }
 
-async function loadDocument(
-  doc: vscode.TextDocument,
-  provider: JsonTreeProvider
-): Promise<void> {
+async function loadDocument(doc: vscode.TextDocument, provider: JsonTreeProvider): Promise<void> {
   const uri = doc.uri.toString();
   const text = doc.getText();
 
-  if (isLikelyBinary(text)) {
-    log(`Skipping binary file: ${uri}`);
-    return;
-  }
+  if (isLikelyBinary(text)) { log(`Skipping binary: ${uri}`); return; }
 
   const byteLength = Buffer.byteLength(text, "utf8");
   const tier = classifySize(byteLength);
@@ -115,26 +151,22 @@ async function loadDocument(
     const { root, errors } = await timeAsync(`parse:${tier}`, () =>
       Promise.resolve(parseDocument(text, tier))
     );
-
     documentStore.set(uri, {
-      uri,
-      version: doc.version,
-      root,
-      rawText: text,
-      parseErrors: errors,
-      lastAccessedAt: Date.now(),
-      isLarge: tier !== "small",
-      // searchIndex built lazily on first search
+      uri, version: doc.version, root, rawText: text,
+      parseErrors: errors, lastAccessedAt: Date.now(), isLarge: tier !== "small",
     });
-
     provider.setDocument(uri);
-
-    if (errors.length > 0) {
-      log(`Parse errors (${errors.length}) in ${uri}`);
-    }
+    if (errors.length) log(`Parse errors (${errors.length}) in ${uri}`);
   } catch (err) {
     log(`Failed to parse ${uri}: ${err}`);
   }
+}
+
+function getNodeAtCursor(editor: vscode.TextEditor): JsonNode | null {
+  return documentStore.getNodeAtOffset(
+    editor.document.uri.toString(),
+    editor.document.offsetAt(editor.selection.active)
+  );
 }
 
 export function deactivate(): void {

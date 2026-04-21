@@ -1,15 +1,18 @@
 import * as vscode from "vscode";
 import type { JsonNode } from "../core/tree-node.js";
 import * as documentStore from "../core/document-store.js";
-import { pathToString } from "../core/path-utils.js";
+import { pathToString, stringToPath } from "../core/path-utils.js";
 import { buildIndex, query, type SearchIndex, type SearchMatch } from "../search/searcher.js";
+import { buildNodePayload } from "../webview/node-payload.js";
+import type { PanelManager } from "../webview/panel-manager.js";
 import { log } from "../utils/logger.js";
 
 type SearchScope = "keys" | "values" | "both";
 
 export function registerCommands(
   ctx: vscode.ExtensionContext,
-  treeView: vscode.TreeView<JsonNode>
+  treeView: vscode.TreeView<JsonNode>,
+  panelManager: PanelManager
 ): void {
   ctx.subscriptions.push(
     vscode.commands.registerCommand("jsonlens.collapseAll", () => {
@@ -28,9 +31,7 @@ export function registerCommands(
       if (!node) return;
       const text = node.value !== undefined
         ? JSON.stringify(node.value)
-        : node.type === "object" || node.type === "array"
-          ? `[${node.type}]`
-          : "null";
+        : node.type === "object" || node.type === "array" ? `[${node.type}]` : "null";
       vscode.env.clipboard.writeText(text);
       vscode.window.setStatusBarMessage("Copied value", 2000);
     }),
@@ -38,29 +39,25 @@ export function registerCommands(
     vscode.commands.registerCommand("jsonlens.revealInTree", () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) return;
-      const uri = editor.document.uri.toString();
-      const offset = editor.document.offsetAt(editor.selection.active);
-      const node = documentStore.getNodeAtOffset(uri, offset);
-      if (node) {
-        treeView.reveal(node, { select: true, focus: true, expand: true }).then(
-          undefined,
-          () => {}
-        );
-      }
+      const node = documentStore.getNodeAtOffset(
+        editor.document.uri.toString(),
+        editor.document.offsetAt(editor.selection.active)
+      );
+      if (node) treeView.reveal(node, { select: true, focus: true, expand: true }).then(undefined, () => {});
     }),
 
     vscode.commands.registerCommand("jsonlens.searchTree", () =>
       runSearch(treeView)
     ),
 
+    vscode.commands.registerCommand("jsonlens.openPreview", (node?: JsonNode) =>
+      openPreview(node, panelManager)
+    ),
+
     vscode.commands.registerCommand("jsonlens.loadMore", (sentinelNode: JsonNode) => {
       log(`Load more at: ${pathToString(sentinelNode.path)}`);
     }),
 
-    // Phase 3+ stubs
-    vscode.commands.registerCommand("jsonlens.openPreview", () => {
-      vscode.window.showInformationMessage("JsonLens: Preview coming in Phase 3.");
-    }),
     vscode.commands.registerCommand("jsonlens.analyzeFields", () => {
       vscode.window.showInformationMessage("JsonLens: Field analysis coming in Phase 4.");
     }),
@@ -71,6 +68,16 @@ export function registerCommands(
       vscode.window.showInformationMessage("JsonLens: Schema export coming in Phase 5.");
     })
   );
+}
+
+function openPreview(node: JsonNode | undefined, panelManager: PanelManager): void {
+  const target = node ?? getNodeAtCursor();
+  if (!target) {
+    panelManager.getOrCreate();
+    return;
+  }
+  panelManager.getOrCreate();
+  panelManager.send({ type: "node.selected", payload: buildNodePayload(target) });
 }
 
 async function runSearch(treeView: vscode.TreeView<JsonNode>): Promise<void> {
@@ -84,22 +91,19 @@ async function runSearch(treeView: vscode.TreeView<JsonNode>): Promise<void> {
     return;
   }
 
-  // Build index lazily on first search
   if (!state.searchIndex || state.searchIndex.builtAtVersion !== state.version) {
     await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Window, title: "JsonLens: Building search index…" },
+      { location: vscode.ProgressLocation.Window, title: "JsonLens: Indexing…" },
       async () => {
         state.searchIndex = await buildIndex(state.root, state.version);
-        log(`Search index built: ${state.searchIndex.keys.size} keys, ${state.searchIndex.values.size} values`);
+        log(`Index: ${state.searchIndex.keys.size} keys, ${state.searchIndex.values.size} values`);
       }
     );
   }
 
   const index = state.searchIndex!;
-  const scope: SearchScope = "both";
-
   const qp = vscode.window.createQuickPick<SearchQuickPickItem>();
-  qp.placeholder = "Search keys and values… (prefix with 'k:' for keys only, 'v:' for values)";
+  qp.placeholder = "Search keys and values… (prefix k: or v: to scope)";
   qp.matchOnDescription = true;
   qp.matchOnDetail = true;
 
@@ -107,41 +111,27 @@ async function runSearch(treeView: vscode.TreeView<JsonNode>): Promise<void> {
 
   qp.onDidChangeValue((value) => {
     clearTimeout(debounce);
-    debounce = setTimeout(() => {
-      qp.items = runQuery(index, value, scope);
-    }, 150);
+    debounce = setTimeout(() => { qp.items = runQuery(index, value); }, 150);
   });
 
   qp.onDidAccept(() => {
-    const selected = qp.selectedItems[0];
-    if (!selected) return;
+    const sel = qp.selectedItems[0];
+    if (!sel) return;
     qp.hide();
-    navigateTo(selected.match, uri, editor, treeView);
+    navigateTo(sel.match, uri, editor, treeView);
   });
 
   qp.onDidHide(() => qp.dispose());
   qp.show();
 }
 
-function runQuery(
-  index: SearchIndex,
-  input: string,
-  defaultScope: SearchScope
-): SearchQuickPickItem[] {
-  let scope: SearchScope = defaultScope;
+function runQuery(index: SearchIndex, input: string): SearchQuickPickItem[] {
+  let scope: SearchScope = "both";
   let q = input;
+  if (input.startsWith("k:")) { scope = "keys"; q = input.slice(2); }
+  else if (input.startsWith("v:")) { scope = "values"; q = input.slice(2); }
 
-  if (input.startsWith("k:")) {
-    scope = "keys";
-    q = input.slice(2);
-  } else if (input.startsWith("v:")) {
-    scope = "values";
-    q = input.slice(2);
-  }
-
-  const matches = query(index, q, scope);
-
-  return matches.map((m) => ({
+  return query(index, q, scope).map((m) => ({
     label: m.label,
     description: m.pathStr,
     detail: m.valuePreview || undefined,
@@ -157,19 +147,11 @@ function navigateTo(
 ): void {
   const node = documentStore.getNodeAtPath(uri, match.path);
   if (!node) return;
-
   const startPos = editor.document.positionAt(node.range[0]);
   const endPos = editor.document.positionAt(node.range[1]);
   editor.selection = new vscode.Selection(startPos, startPos);
-  editor.revealRange(
-    new vscode.Range(startPos, endPos),
-    vscode.TextEditorRevealType.InCenterIfOutsideViewport
-  );
-
-  treeView.reveal(node, { select: true, focus: false, expand: true }).then(
-    undefined,
-    () => {}
-  );
+  editor.revealRange(new vscode.Range(startPos, endPos), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+  treeView.reveal(node, { select: true, focus: false, expand: true }).then(undefined, () => {});
 }
 
 interface SearchQuickPickItem extends vscode.QuickPickItem {

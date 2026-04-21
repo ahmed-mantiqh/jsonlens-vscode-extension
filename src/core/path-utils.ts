@@ -50,3 +50,35 @@ export function pathToSegments(path: Path): { label: string; path: Path }[] {
     path: path.slice(0, i + 1),
   }));
 }
+
+export function stringToPath(s: string): Path {
+  if (!s || s === "$") return [];
+  const path: Path = [];
+  let rest = s.startsWith("$") ? s.slice(1) : s;
+
+  while (rest.length > 0) {
+    if (rest.startsWith("[")) {
+      const end = rest.indexOf("]");
+      if (end === -1) break;
+      const raw = rest.slice(1, end);
+      rest = rest.slice(end + 1);
+      if ((raw.startsWith('"') && raw.endsWith('"')) ||
+          (raw.startsWith("'") && raw.endsWith("'"))) {
+        path.push(raw.slice(1, -1));
+      } else {
+        const n = parseInt(raw, 10);
+        path.push(isNaN(n) ? raw : n);
+      }
+    } else if (rest.startsWith(".")) {
+      rest = rest.slice(1);
+      const next = rest.search(/[.\[]/);
+      const seg = next === -1 ? rest : rest.slice(0, next);
+      if (seg) path.push(seg);
+      rest = next === -1 ? "" : rest.slice(next);
+    } else {
+      break;
+    }
+  }
+
+  return path;
+}
