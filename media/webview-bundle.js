@@ -785,7 +785,7 @@
   var require_react_dom_production = __commonJS({
     "node_modules/react-dom/cjs/react-dom.production.js"(exports) {
       "use strict";
-      var React4 = require_react();
+      var React5 = require_react();
       function formatProdErrorMessage(code) {
         var url = "https://react.dev/errors/" + code;
         if (1 < arguments.length) {
@@ -825,7 +825,7 @@
           implementation
         };
       }
-      var ReactSharedInternals = React4.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+      var ReactSharedInternals = React5.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
       function getCrossOriginStringAs(as, input) {
         if ("font" === as)
           return "";
@@ -965,7 +965,7 @@
     "node_modules/react-dom/cjs/react-dom-client.production.js"(exports) {
       "use strict";
       var Scheduler = require_scheduler();
-      var React4 = require_react();
+      var React5 = require_react();
       var ReactDOM = require_react_dom();
       function formatProdErrorMessage(code) {
         var url = "https://react.dev/errors/" + code;
@@ -1177,7 +1177,7 @@
         return null;
       }
       var isArrayImpl = Array.isArray;
-      var ReactSharedInternals = React4.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+      var ReactSharedInternals = React5.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
       var ReactDOMSharedInternals = ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
       var sharedNotPendingObject = {
         pending: false,
@@ -12865,7 +12865,7 @@
           0 === i && attemptExplicitHydrationTarget(target);
         }
       };
-      var isomorphicReactPackageVersion$jscomp$inline_1840 = React4.version;
+      var isomorphicReactPackageVersion$jscomp$inline_1840 = React5.version;
       if ("19.2.5" !== isomorphicReactPackageVersion$jscomp$inline_1840)
         throw Error(
           formatProdErrorMessage(
@@ -13039,7 +13039,7 @@
   var import_client = __toESM(require_client());
 
   // webview-src/App.tsx
-  var import_react5 = __toESM(require_react());
+  var import_react6 = __toESM(require_react());
 
   // webview-src/vscode-api.ts
   var _api = null;
@@ -13069,7 +13069,9 @@
   function reducer(state, action) {
     switch (action.type) {
       case "NODE_SELECTED":
-        return { selectedNode: action.payload, loading: false, error: null };
+        return { selectedNode: action.payload, analysisResult: null, loading: false, error: null };
+      case "ANALYSIS_RESULT":
+        return { ...state, analysisResult: action.payload, loading: false, error: null };
       case "LOADING":
         return { ...state, loading: true, error: null };
       case "ERROR":
@@ -13078,13 +13080,16 @@
         return state;
     }
   }
-  var initial = { selectedNode: null, loading: false, error: null };
+  var initial = { selectedNode: null, analysisResult: null, loading: false, error: null };
   function useNodeData() {
     const [state, dispatch] = (0, import_react2.useReducer)(reducer, initial);
     const handleMessage = (0, import_react2.useCallback)((msg) => {
       switch (msg.type) {
         case "node.selected":
           dispatch({ type: "NODE_SELECTED", payload: msg.payload });
+          break;
+        case "analysis.result":
+          dispatch({ type: "ANALYSIS_RESULT", payload: msg.payload });
           break;
         case "node.loading":
           dispatch({ type: "LOADING" });
@@ -13412,8 +13417,8 @@
       return "null";
     if (c.value === void 0)
       return "";
-    const s6 = String(c.value);
-    return s6.length > 48 ? s6.slice(0, 48) + "\u2026" : s6;
+    const s7 = String(c.value);
+    return s7.length > 48 ? s7.slice(0, 48) + "\u2026" : s7;
   }
   var s3 = {
     meta: {
@@ -13473,6 +13478,7 @@
     for (const c of childPreviews) {
       typeCounts.set(c.type, (typeCounts.get(c.type) ?? 0) + 1);
     }
+    const hasObjects = typeCounts.has("object");
     return /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { children: [
       /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("div", { style: s4.meta, children: [
         /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { children: [
@@ -13480,7 +13486,15 @@
           " ",
           childCount === 1 ? "item" : "items"
         ] }),
-        typeCounts.size > 1 && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: s4.mixed, children: " \xB7 mixed types" })
+        typeCounts.size > 1 && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("span", { style: s4.mixed, children: " \xB7 mixed types" }),
+        hasObjects && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)(
+          "button",
+          {
+            style: s4.analyzeBtn,
+            onClick: () => postMessage({ type: "analyze.request", payload: { path } }),
+            children: "Analyze Fields"
+          }
+        )
       ] }),
       typeCounts.size > 1 && /* @__PURE__ */ (0, import_jsx_runtime5.jsx)("div", { style: s4.dist, children: [...typeCounts.entries()].map(([type, count]) => /* @__PURE__ */ (0, import_jsx_runtime5.jsxs)("span", { style: s4.badge, children: [
         type,
@@ -13526,7 +13540,17 @@
     return str.length > 60 ? str.slice(0, 60) + "\u2026" : str;
   }
   var s4 = {
-    meta: { color: "var(--vscode-descriptionForeground)", fontSize: "0.85em", marginBottom: 8 },
+    meta: { color: "var(--vscode-descriptionForeground)", fontSize: "0.85em", marginBottom: 8, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 },
+    analyzeBtn: {
+      background: "var(--vscode-button-background)",
+      color: "var(--vscode-button-foreground)",
+      border: "none",
+      borderRadius: 3,
+      cursor: "pointer",
+      padding: "2px 9px",
+      fontSize: "0.82em",
+      marginLeft: "auto"
+    },
     mixed: { color: "var(--vscode-inputValidation-warningForeground, #cca700)" },
     dist: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 },
     badge: {
@@ -13710,14 +13734,195 @@
     actions: { marginTop: 10 }
   };
 
-  // webview-src/App.tsx
+  // webview-src/components/FieldAnalysisView.tsx
+  var import_react5 = __toESM(require_react());
   var import_jsx_runtime7 = __toESM(require_jsx_runtime());
+  function FieldAnalysisView({ payload, onBack }) {
+    const [sortKey, setSortKey] = (0, import_react5.useState)("count");
+    const [sortDir, setSortDir] = (0, import_react5.useState)("desc");
+    function handleSort(key) {
+      if (sortKey === key) {
+        setSortDir((d) => d === "asc" ? "desc" : "asc");
+      } else {
+        setSortKey(key);
+        setSortDir(key === "key" ? "asc" : "desc");
+      }
+    }
+    const sorted = [...payload.rows].sort((a, b) => {
+      let cmp = 0;
+      switch (sortKey) {
+        case "key":
+          cmp = a.key.localeCompare(b.key);
+          break;
+        case "count":
+          cmp = a.count - b.count;
+          break;
+        case "coverage":
+          cmp = a.coverage - b.coverage;
+          break;
+        case "status":
+          cmp = statusOrder(a.status) - statusOrder(b.status);
+          break;
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    const sampled = payload.sampledItems < payload.totalItems;
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { style: s6.root, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { style: s6.header, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("button", { onClick: onBack, style: s6.backBtn, children: "\u2190 Back" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { style: s6.title, children: "Field Analysis" }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { style: s6.path, children: payload.arrayPath })
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { style: s6.meta, children: [
+        payload.totalItems.toLocaleString(),
+        " items",
+        sampled && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { style: s6.sampled, children: [
+          " \xB7 sampled ",
+          payload.sampledItems.toLocaleString()
+        ] }),
+        payload.skippedNonObjects > 0 && /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { style: s6.skipped, children: [
+          " \xB7 ",
+          payload.skippedNonObjects,
+          " non-object ",
+          payload.skippedNonObjects === 1 ? "item" : "items",
+          " skipped"
+        ] }),
+        " \xB7 ",
+        payload.rows.length,
+        " unique ",
+        payload.rows.length === 1 ? "key" : "keys"
+      ] }),
+      payload.rows.length === 0 ? /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: s6.empty, children: "No object items found in array." }) : /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("table", { style: s6.table, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("thead", { children: /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("tr", { children: [
+          ["key", "count", "coverage", "status"].map((col) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("th", { style: { ...s6.th, ...s6.thClickable }, onClick: () => handleSort(col), children: [
+            colLabel(col),
+            sortKey === col ? sortDir === "asc" ? " \u2191" : " \u2193" : ""
+          ] }, col)),
+          /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("th", { style: s6.th, children: "Types" })
+        ] }) }),
+        /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("tbody", { children: sorted.map((row) => /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)(
+          "tr",
+          {
+            style: s6.tr,
+            onClick: () => postMessage({ type: "navigate.path", payload: { path: row.firstPath } }),
+            children: [
+              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("td", { style: { ...s6.td, ...s6.keyCell }, children: row.key }),
+              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("td", { style: { ...s6.td, ...s6.numCell }, children: row.count.toLocaleString() }),
+              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("td", { style: { ...s6.td, ...s6.numCell }, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(CoverageBar, { coverage: row.coverage }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("td", { style: { ...s6.td, ...s6.statusCell }, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(StatusBadge, { status: row.status }) }),
+              /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("td", { style: s6.td, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: s6.types, children: row.types.map((t) => /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { style: s6.typeBadge, children: t }, t)) }) })
+            ]
+          },
+          row.key
+        )) })
+      ] })
+    ] });
+  }
+  function CoverageBar({ coverage }) {
+    const pct = Math.round(coverage * 100);
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { style: { display: "flex", alignItems: "center", gap: 6 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: s6.barTrack, children: /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: { ...s6.barFill, width: `${pct}%` } }) }),
+      /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("span", { style: s6.pct, children: [
+        pct,
+        "%"
+      ] })
+    ] });
+  }
+  function StatusBadge({ status }) {
+    const color = status === "ok" ? "var(--vscode-testing-iconPassed, #3fb950)" : status === "inconsistent" ? "var(--vscode-errorForeground, #f85149)" : "var(--vscode-inputValidation-warningForeground, #cca700)";
+    return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { style: { ...s6.statusDot, color }, children: statusLabel(status) });
+  }
+  function statusOrder(s7) {
+    return s7 === "inconsistent" ? 0 : s7 === "sparse" ? 1 : 2;
+  }
+  function statusLabel(s7) {
+    return s7 === "inconsistent" ? "inconsistent" : s7 === "sparse" ? "sparse" : "ok";
+  }
+  function colLabel(k) {
+    return k === "key" ? "Key" : k === "count" ? "Count" : k === "coverage" ? "Coverage" : "Status";
+  }
+  var s6 = {
+    root: { padding: "10px 14px", fontFamily: "var(--vscode-font-family)" },
+    header: { display: "flex", alignItems: "center", gap: 10, marginBottom: 10, flexWrap: "wrap" },
+    backBtn: {
+      background: "none",
+      border: "1px solid var(--vscode-button-border, var(--vscode-widget-border))",
+      color: "var(--vscode-textLink-foreground)",
+      borderRadius: 3,
+      cursor: "pointer",
+      padding: "2px 8px",
+      fontSize: "0.85em"
+    },
+    title: { fontWeight: 600, fontSize: "1em" },
+    path: {
+      fontFamily: "var(--vscode-editor-font-family, monospace)",
+      fontSize: "0.8em",
+      color: "var(--vscode-descriptionForeground)",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+      maxWidth: 200
+    },
+    meta: { fontSize: "0.82em", color: "var(--vscode-descriptionForeground)", marginBottom: 10 },
+    sampled: { color: "var(--vscode-inputValidation-warningForeground, #cca700)" },
+    skipped: { color: "var(--vscode-descriptionForeground)" },
+    empty: { color: "var(--vscode-descriptionForeground)", fontSize: "0.9em", padding: "20px 0" },
+    table: { width: "100%", borderCollapse: "collapse", fontSize: "0.85em" },
+    th: {
+      textAlign: "left",
+      padding: "5px 8px",
+      borderBottom: "1px solid var(--vscode-widget-border, var(--vscode-input-border))",
+      color: "var(--vscode-descriptionForeground)",
+      fontWeight: 600,
+      whiteSpace: "nowrap"
+    },
+    thClickable: { cursor: "pointer", userSelect: "none" },
+    tr: { cursor: "pointer" },
+    td: { padding: "4px 8px", borderBottom: "1px solid var(--vscode-widget-border, var(--vscode-input-border))" },
+    keyCell: {
+      fontFamily: "var(--vscode-editor-font-family, monospace)",
+      color: "var(--vscode-editor-foreground)",
+      fontWeight: 500,
+      maxWidth: 160,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap"
+    },
+    numCell: { textAlign: "right", color: "var(--vscode-editor-foreground)" },
+    statusCell: { whiteSpace: "nowrap" },
+    statusDot: { fontSize: "0.82em", fontWeight: 500 },
+    types: { display: "flex", flexWrap: "wrap", gap: 3 },
+    typeBadge: {
+      padding: "0px 5px",
+      background: "var(--vscode-badge-background)",
+      color: "var(--vscode-badge-foreground)",
+      borderRadius: 8,
+      fontSize: "0.78em",
+      whiteSpace: "nowrap"
+    },
+    barTrack: {
+      width: 50,
+      height: 6,
+      background: "var(--vscode-widget-border, var(--vscode-input-border))",
+      borderRadius: 3,
+      overflow: "hidden"
+    },
+    barFill: {
+      height: "100%",
+      background: "var(--vscode-progressBar-background)",
+      borderRadius: 3
+    },
+    pct: { fontSize: "0.78em", color: "var(--vscode-descriptionForeground)", minWidth: 28 }
+  };
+
+  // webview-src/App.tsx
+  var import_jsx_runtime8 = __toESM(require_jsx_runtime());
   function App() {
-    const { selectedNode, loading, error } = useNodeData();
-    (0, import_react5.useEffect)(() => {
+    const { selectedNode, analysisResult, loading, error } = useNodeData();
+    (0, import_react6.useEffect)(() => {
       postMessage({ type: "ready" });
     }, []);
-    (0, import_react5.useEffect)(() => {
+    (0, import_react6.useEffect)(() => {
       const handler = (e) => {
         const url = e.detail;
         postMessage({ type: "open.url", payload: { url } });
@@ -13726,15 +13931,24 @@
       return () => window.removeEventListener("jl:openurl", handler);
     }, []);
     if (loading)
-      return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(CenteredMsg, { children: "Loading\u2026" });
+      return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(CenteredMsg, { children: "Loading\u2026" });
     if (error)
-      return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(CenteredMsg, { error: true, children: error });
+      return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(CenteredMsg, { error: true, children: error });
+    if (analysisResult) {
+      return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+        FieldAnalysisView,
+        {
+          payload: analysisResult,
+          onBack: () => postMessage({ type: "navigate.path", payload: { path: analysisResult.arrayPath } })
+        }
+      );
+    }
     if (!selectedNode)
-      return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(Empty, {});
-    return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)(NodePreview, { node: selectedNode });
+      return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Empty, {});
+    return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NodePreview, { node: selectedNode });
   }
   function CenteredMsg({ children, error }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: {
+    return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: {
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -13744,7 +13958,7 @@
     }, children });
   }
   function Empty() {
-    return /* @__PURE__ */ (0, import_jsx_runtime7.jsxs)("div", { style: {
+    return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { style: {
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
@@ -13754,16 +13968,16 @@
       color: "var(--vscode-descriptionForeground)",
       userSelect: "none"
     }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: { fontSize: "2em", opacity: 0.3 } }),
-      /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("div", { style: { fontSize: "0.9em" }, children: "Select a node in the tree to preview it" })
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: { fontSize: "2em", opacity: 0.3 } }),
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: { fontSize: "0.9em" }, children: "Select a node in the tree to preview it" })
     ] });
   }
 
   // webview-src/index.tsx
-  var import_jsx_runtime8 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime9 = __toESM(require_jsx_runtime());
   var container = document.getElementById("root");
   if (container) {
-    (0, import_client.createRoot)(container).render(/* @__PURE__ */ (0, import_jsx_runtime8.jsx)(App, {}));
+    (0, import_client.createRoot)(container).render(/* @__PURE__ */ (0, import_jsx_runtime9.jsx)(App, {}));
   }
 })();
 /*! Bundled license information:

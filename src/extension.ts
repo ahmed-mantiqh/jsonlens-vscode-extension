@@ -10,6 +10,7 @@ import { BreadcrumbProvider } from "./search/breadcrumb-provider.js";
 import { PanelManager } from "./webview/panel-manager.js";
 import { buildNodePayload } from "./webview/node-payload.js";
 import { stringToPath } from "./core/path-utils.js";
+import { analyzeArrayNode } from "./analysis/field-analyzer.js";
 import type { JsonNode } from "./core/tree-node.js";
 
 const SUPPORTED = new Set(["json", "jsonc"]);
@@ -75,6 +76,17 @@ export function activate(ctx: vscode.ExtensionContext): void {
       }
     } else if (msg.type === "open.url") {
       vscode.env.openExternal(vscode.Uri.parse(msg.payload.url));
+    } else if (msg.type === "analyze.request") {
+      const path = stringToPath(msg.payload.path);
+      const node = documentStore.getNodeAtPath(uri, path);
+      if (!node || node.type !== "array") return;
+      const state = documentStore.get(uri);
+      if (!state) return;
+      panelManager.send({ type: "node.loading" });
+      analyzeArrayNode(node, state.rawText).then(
+        (payload) => panelManager.send({ type: "analysis.result", payload }),
+        (err) => panelManager.send({ type: "error", payload: { message: `Analysis failed: ${err}` } })
+      );
     } else if (msg.type === "ready") {
       // Re-send current selection on webview ready (panel reload/reveal)
       const sel = treeView?.selection[0];

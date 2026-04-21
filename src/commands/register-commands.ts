@@ -4,6 +4,7 @@ import * as documentStore from "../core/document-store.js";
 import { pathToString, stringToPath } from "../core/path-utils.js";
 import { buildIndex, query, type SearchIndex, type SearchMatch } from "../search/searcher.js";
 import { buildNodePayload } from "../webview/node-payload.js";
+import { analyzeArrayNode } from "../analysis/field-analyzer.js";
 import type { PanelManager } from "../webview/panel-manager.js";
 import { log } from "../utils/logger.js";
 
@@ -58,9 +59,9 @@ export function registerCommands(
       log(`Load more at: ${pathToString(sentinelNode.path)}`);
     }),
 
-    vscode.commands.registerCommand("jsonlens.analyzeFields", () => {
-      vscode.window.showInformationMessage("JsonLens: Field analysis coming in Phase 4.");
-    }),
+    vscode.commands.registerCommand("jsonlens.analyzeFields", (node?: JsonNode) =>
+      runAnalyzeFields(node, panelManager)
+    ),
     vscode.commands.registerCommand("jsonlens.inferSchema", () => {
       vscode.window.showInformationMessage("JsonLens: Schema inference coming in Phase 5.");
     }),
@@ -68,6 +69,38 @@ export function registerCommands(
       vscode.window.showInformationMessage("JsonLens: Schema export coming in Phase 5.");
     })
   );
+}
+
+async function runAnalyzeFields(node: JsonNode | undefined, panelManager: PanelManager): Promise<void> {
+  const target = node ?? getNodeAtCursor();
+  if (!target) {
+    vscode.window.showWarningMessage("JsonLens: Select an array node to analyze.");
+    return;
+  }
+  if (target.type !== "array") {
+    vscode.window.showWarningMessage("JsonLens: Field analysis requires an array node.");
+    return;
+  }
+
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+  const uri = editor.document.uri.toString();
+  const state = documentStore.get(uri);
+  if (!state) return;
+
+  panelManager.getOrCreate();
+  panelManager.send({ type: "node.loading" });
+
+  try {
+    const payload = await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Window, title: "JsonLens: Analyzing fields…" },
+      () => analyzeArrayNode(target, state.rawText)
+    );
+    log(`Analysis: ${payload.rows.length} keys, ${payload.totalItems} items`);
+    panelManager.send({ type: "analysis.result", payload });
+  } catch (err) {
+    panelManager.send({ type: "error", payload: { message: `Analysis failed: ${err}` } });
+  }
 }
 
 function openPreview(node: JsonNode | undefined, panelManager: PanelManager): void {

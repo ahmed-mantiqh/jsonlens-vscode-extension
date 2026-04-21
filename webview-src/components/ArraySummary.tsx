@@ -18,12 +18,22 @@ export function ArraySummary({ childCount, childPreviews, path }: Props) {
     typeCounts.set(c.type, (typeCounts.get(c.type) ?? 0) + 1);
   }
 
+  const hasObjects = typeCounts.has("object");
+
   return (
     <div>
       <div style={s.meta}>
         <span>{childCount} {childCount === 1 ? "item" : "items"}</span>
         {typeCounts.size > 1 && (
           <span style={s.mixed}> · mixed types</span>
+        )}
+        {hasObjects && (
+          <button
+            style={s.analyzeBtn}
+            onClick={() => postMessage({ type: "analyze.request", payload: { path } })}
+          >
+            Analyze Fields
+          </button>
         )}
       </div>
 
@@ -68,7 +78,17 @@ function formatItem(c: ChildPreview): string {
 }
 
 const s: Record<string, React.CSSProperties> = {
-  meta: { color: "var(--vscode-descriptionForeground)", fontSize: "0.85em", marginBottom: 8 },
+  meta: { color: "var(--vscode-descriptionForeground)", fontSize: "0.85em", marginBottom: 8, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 },
+  analyzeBtn: {
+    background: "var(--vscode-button-background)",
+    color: "var(--vscode-button-foreground)",
+    border: "none",
+    borderRadius: 3,
+    cursor: "pointer",
+    padding: "2px 9px",
+    fontSize: "0.82em",
+    marginLeft: "auto",
+  },
   mixed: { color: "var(--vscode-inputValidation-warningForeground, #cca700)" },
   dist: { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 },
   badge: {

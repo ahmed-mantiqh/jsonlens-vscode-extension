@@ -2,16 +2,15 @@ import React, { useEffect } from "react";
 import { postMessage } from "./vscode-api.js";
 import { useNodeData } from "./hooks/useNodeData.js";
 import { NodePreview } from "./components/NodePreview.js";
+import { FieldAnalysisView } from "./components/FieldAnalysisView.js";
 
 export function App() {
-  const { selectedNode, loading, error } = useNodeData();
+  const { selectedNode, analysisResult, loading, error } = useNodeData();
 
-  // Notify extension we're ready
   useEffect(() => {
     postMessage({ type: "ready" });
   }, []);
 
-  // Handle open.url events from ImagePreview (can't import vscode-api in that component directly)
   useEffect(() => {
     const handler = (e: Event) => {
       const url = (e as CustomEvent<string>).detail;
@@ -23,6 +22,16 @@ export function App() {
 
   if (loading) return <CenteredMsg>Loading…</CenteredMsg>;
   if (error) return <CenteredMsg error>{error}</CenteredMsg>;
+
+  if (analysisResult) {
+    return (
+      <FieldAnalysisView
+        payload={analysisResult}
+        onBack={() => postMessage({ type: "navigate.path", payload: { path: analysisResult.arrayPath } })}
+      />
+    );
+  }
+
   if (!selectedNode) return <Empty />;
 
   return <NodePreview node={selectedNode} />;

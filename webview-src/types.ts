@@ -26,13 +26,32 @@ export type NodePayload = {
   childPreviews: ChildPreview[];
 };
 
+export type AnalysisRow = {
+  key: string;
+  count: number;
+  coverage: number;
+  types: string[];
+  firstPath: string;
+  status: "ok" | "inconsistent" | "sparse";
+};
+
+export type AnalysisPayload = {
+  arrayPath: string;
+  rows: AnalysisRow[];
+  totalItems: number;
+  sampledItems: number;
+  skippedNonObjects: number;
+};
+
 export type ExtensionMessage =
-  | { type: "node.selected"; payload: NodePayload }
+  | { type: "node.selected";   payload: NodePayload }
   | { type: "node.loading" }
-  | { type: "error"; payload: { message: string } };
+  | { type: "analysis.result"; payload: AnalysisPayload }
+  | { type: "error";           payload: { message: string } };
 
 export type WebviewMessage =
-  | { type: "navigate.path"; payload: { path: string } }
-  | { type: "copy.value";    payload: { path: string } }
-  | { type: "open.url";      payload: { url: string } }
+  | { type: "navigate.path";   payload: { path: string } }
+  | { type: "copy.value";      payload: { path: string } }
+  | { type: "open.url";        payload: { url: string } }
+  | { type: "analyze.request"; payload: { path: string } }
   | { type: "ready" };
