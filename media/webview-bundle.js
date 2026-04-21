@@ -785,7 +785,7 @@
   var require_react_dom_production = __commonJS({
     "node_modules/react-dom/cjs/react-dom.production.js"(exports) {
       "use strict";
-      var React5 = require_react();
+      var React6 = require_react();
       function formatProdErrorMessage(code) {
         var url = "https://react.dev/errors/" + code;
         if (1 < arguments.length) {
@@ -825,7 +825,7 @@
           implementation
         };
       }
-      var ReactSharedInternals = React5.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+      var ReactSharedInternals = React6.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
       function getCrossOriginStringAs(as, input) {
         if ("font" === as)
           return "";
@@ -965,7 +965,7 @@
     "node_modules/react-dom/cjs/react-dom-client.production.js"(exports) {
       "use strict";
       var Scheduler = require_scheduler();
-      var React5 = require_react();
+      var React6 = require_react();
       var ReactDOM = require_react_dom();
       function formatProdErrorMessage(code) {
         var url = "https://react.dev/errors/" + code;
@@ -1177,7 +1177,7 @@
         return null;
       }
       var isArrayImpl = Array.isArray;
-      var ReactSharedInternals = React5.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
+      var ReactSharedInternals = React6.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
       var ReactDOMSharedInternals = ReactDOM.__DOM_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE;
       var sharedNotPendingObject = {
         pending: false,
@@ -12865,7 +12865,7 @@
           0 === i && attemptExplicitHydrationTarget(target);
         }
       };
-      var isomorphicReactPackageVersion$jscomp$inline_1840 = React5.version;
+      var isomorphicReactPackageVersion$jscomp$inline_1840 = React6.version;
       if ("19.2.5" !== isomorphicReactPackageVersion$jscomp$inline_1840)
         throw Error(
           formatProdErrorMessage(
@@ -13039,7 +13039,7 @@
   var import_client = __toESM(require_client());
 
   // webview-src/App.tsx
-  var import_react6 = __toESM(require_react());
+  var import_react7 = __toESM(require_react());
 
   // webview-src/vscode-api.ts
   var _api = null;
@@ -13069,9 +13069,11 @@
   function reducer(state, action) {
     switch (action.type) {
       case "NODE_SELECTED":
-        return { selectedNode: action.payload, analysisResult: null, loading: false, error: null };
+        return { selectedNode: action.payload, analysisResult: null, schemaResult: null, loading: false, error: null };
       case "ANALYSIS_RESULT":
-        return { ...state, analysisResult: action.payload, loading: false, error: null };
+        return { ...state, analysisResult: action.payload, schemaResult: null, loading: false, error: null };
+      case "SCHEMA_RESULT":
+        return { ...state, schemaResult: action.payload, analysisResult: null, loading: false, error: null };
       case "LOADING":
         return { ...state, loading: true, error: null };
       case "ERROR":
@@ -13080,7 +13082,13 @@
         return state;
     }
   }
-  var initial = { selectedNode: null, analysisResult: null, loading: false, error: null };
+  var initial = {
+    selectedNode: null,
+    analysisResult: null,
+    schemaResult: null,
+    loading: false,
+    error: null
+  };
   function useNodeData() {
     const [state, dispatch] = (0, import_react2.useReducer)(reducer, initial);
     const handleMessage = (0, import_react2.useCallback)((msg) => {
@@ -13090,6 +13098,9 @@
           break;
         case "analysis.result":
           dispatch({ type: "ANALYSIS_RESULT", payload: msg.payload });
+          break;
+        case "schema.result":
+          dispatch({ type: "SCHEMA_RESULT", payload: msg.payload });
           break;
         case "node.loading":
           dispatch({ type: "LOADING" });
@@ -13417,8 +13428,8 @@
       return "null";
     if (c.value === void 0)
       return "";
-    const s7 = String(c.value);
-    return s7.length > 48 ? s7.slice(0, 48) + "\u2026" : s7;
+    const s8 = String(c.value);
+    return s8.length > 48 ? s8.slice(0, 48) + "\u2026" : s8;
   }
   var s3 = {
     meta: {
@@ -13637,7 +13648,15 @@
             children: node.type
           }
         ),
-        (node.type === "object" || node.type === "array") && node.childCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { style: s5.count, children: node.type === "object" ? `${node.childCount} ${node.childCount === 1 ? "key" : "keys"}` : `${node.childCount} ${node.childCount === 1 ? "item" : "items"}` })
+        (node.type === "object" || node.type === "array") && node.childCount > 0 && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("span", { style: s5.count, children: node.type === "object" ? `${node.childCount} ${node.childCount === 1 ? "key" : "keys"}` : `${node.childCount} ${node.childCount === 1 ? "item" : "items"}` }),
+        (node.type === "object" || node.type === "array") && /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(
+          "button",
+          {
+            style: s5.schemaBtn,
+            onClick: () => postMessage({ type: "schema.request", payload: { path: node.path } }),
+            children: "Infer Schema"
+          }
+        )
       ] }),
       /* @__PURE__ */ (0, import_jsx_runtime6.jsx)("div", { style: s5.body, children: /* @__PURE__ */ (0, import_jsx_runtime6.jsx)(NodeBody, { node }) })
     ] });
@@ -13716,6 +13735,16 @@
     count: {
       fontSize: "0.82em",
       color: "var(--vscode-descriptionForeground)"
+    },
+    schemaBtn: {
+      background: "none",
+      border: "1px solid var(--vscode-button-border, var(--vscode-widget-border))",
+      color: "var(--vscode-textLink-foreground)",
+      borderRadius: 3,
+      cursor: "pointer",
+      padding: "1px 7px",
+      fontSize: "0.78em",
+      marginLeft: "auto"
     },
     body: {},
     boolVal: {
@@ -13832,11 +13861,11 @@
     const color = status === "ok" ? "var(--vscode-testing-iconPassed, #3fb950)" : status === "inconsistent" ? "var(--vscode-errorForeground, #f85149)" : "var(--vscode-inputValidation-warningForeground, #cca700)";
     return /* @__PURE__ */ (0, import_jsx_runtime7.jsx)("span", { style: { ...s6.statusDot, color }, children: statusLabel(status) });
   }
-  function statusOrder(s7) {
-    return s7 === "inconsistent" ? 0 : s7 === "sparse" ? 1 : 2;
+  function statusOrder(s8) {
+    return s8 === "inconsistent" ? 0 : s8 === "sparse" ? 1 : 2;
   }
-  function statusLabel(s7) {
-    return s7 === "inconsistent" ? "inconsistent" : s7 === "sparse" ? "sparse" : "ok";
+  function statusLabel(s8) {
+    return s8 === "inconsistent" ? "inconsistent" : s8 === "sparse" ? "sparse" : "ok";
   }
   function colLabel(k) {
     return k === "key" ? "Key" : k === "count" ? "Count" : k === "coverage" ? "Coverage" : "Status";
@@ -13915,14 +13944,193 @@
     pct: { fontSize: "0.78em", color: "var(--vscode-descriptionForeground)", minWidth: 28 }
   };
 
-  // webview-src/App.tsx
+  // webview-src/components/SchemaView.tsx
+  var import_react6 = __toESM(require_react());
   var import_jsx_runtime8 = __toESM(require_jsx_runtime());
+  function SchemaView({ payload, onBack }) {
+    const schema = payload.schema;
+    const { nodeCount, inferredAt } = payload.stats;
+    return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { style: s7.root, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { style: s7.header, children: [
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("button", { onClick: onBack, style: s7.backBtn, children: "\u2190 Back" }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { style: s7.title, children: "JSON Schema" }),
+        /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+          "button",
+          {
+            style: s7.exportBtn,
+            onClick: () => postMessage({ type: "schema.export", payload: { schema: payload.schema } }),
+            children: "Export"
+          }
+        )
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { style: s7.meta, children: [
+        nodeCount.toLocaleString(),
+        " nodes \xB7 inferred ",
+        new Date(inferredAt).toLocaleTimeString()
+      ] }),
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(SchemaNode, { schema, name: "(root)", required: true, depth: 0 })
+    ] });
+  }
+  function SchemaNode({ schema, name, required, depth }) {
+    const [open, setOpen] = (0, import_react6.useState)(depth < 2);
+    const hasChildren = !!(schema.properties || schema.items);
+    const typeLabel = formatType(schema);
+    return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { style: { marginLeft: depth > 0 ? 16 : 0 }, children: [
+      /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)(
+        "div",
+        {
+          style: { ...s7.row, cursor: hasChildren ? "pointer" : "default" },
+          onClick: hasChildren ? () => setOpen((o) => !o) : void 0,
+          children: [
+            hasChildren && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { style: s7.arrow, children: open ? "\u25BE" : "\u25B8" }),
+            !hasChildren && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { style: s7.arrowSpacer }),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { style: s7.keyName, children: name }),
+            required && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { style: s7.requiredDot, title: "required", children: "*" }),
+            /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { style: { ...s7.typeBadge, background: typeColor(schema) }, children: typeLabel }),
+            schema.format && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { style: s7.formatBadge, children: schema.format }),
+            schema.enum && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("span", { style: s7.enumHint, children: formatEnum(schema.enum) })
+          ]
+        }
+      ),
+      open && hasChildren && /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { style: s7.children, children: [
+        schema.properties && Object.entries(schema.properties).map(([key, child]) => /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+          SchemaNode,
+          {
+            schema: child,
+            name: key,
+            required: schema.required?.includes(key),
+            depth: depth + 1
+          },
+          key
+        )),
+        schema.items && !schema.properties && /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+          SchemaNode,
+          {
+            schema: schema.items,
+            name: "[items]",
+            depth: depth + 1
+          }
+        )
+      ] })
+    ] });
+  }
+  function formatType(schema) {
+    if (schema.enum)
+      return "enum";
+    if (!schema.type)
+      return "any";
+    if (Array.isArray(schema.type))
+      return schema.type.join(" | ");
+    return schema.type;
+  }
+  function formatEnum(values) {
+    const strs = values.slice(0, 5).map((v) => JSON.stringify(v));
+    const suffix = values.length > 5 ? ` +${values.length - 5}` : "";
+    return strs.join(", ") + suffix;
+  }
+  function typeColor(schema) {
+    const t = Array.isArray(schema.type) ? schema.type[0] : schema.type;
+    if (schema.enum)
+      return "var(--vscode-charts-purple, #b180d7)";
+    switch (t) {
+      case "object":
+        return "var(--vscode-charts-blue, #4e9fff)";
+      case "array":
+        return "var(--vscode-charts-yellow, #d7ba7d)";
+      case "string":
+        return "var(--vscode-charts-green, #89d185)";
+      case "number":
+      case "integer":
+        return "var(--vscode-charts-orange, #d19a66)";
+      case "boolean":
+        return "var(--vscode-charts-red, #f44747)";
+      case "null":
+        return "var(--vscode-disabledForeground, #858585)";
+      default:
+        return "var(--vscode-badge-background)";
+    }
+  }
+  var s7 = {
+    root: { padding: "10px 14px", fontFamily: "var(--vscode-font-family)", fontSize: "0.88em" },
+    header: { display: "flex", alignItems: "center", gap: 8, marginBottom: 10 },
+    backBtn: {
+      background: "none",
+      border: "1px solid var(--vscode-button-border, var(--vscode-widget-border))",
+      color: "var(--vscode-textLink-foreground)",
+      borderRadius: 3,
+      cursor: "pointer",
+      padding: "2px 8px",
+      fontSize: "0.85em"
+    },
+    title: { fontWeight: 600, flex: 1 },
+    exportBtn: {
+      background: "var(--vscode-button-background)",
+      color: "var(--vscode-button-foreground)",
+      border: "none",
+      borderRadius: 3,
+      cursor: "pointer",
+      padding: "2px 10px",
+      fontSize: "0.82em"
+    },
+    meta: { fontSize: "0.78em", color: "var(--vscode-descriptionForeground)", marginBottom: 10 },
+    row: {
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "3px 4px",
+      borderRadius: 3,
+      minHeight: 22
+    },
+    arrow: { color: "var(--vscode-descriptionForeground)", fontSize: "0.8em", width: 10, flexShrink: 0 },
+    arrowSpacer: { width: 10, flexShrink: 0, display: "inline-block" },
+    keyName: {
+      fontFamily: "var(--vscode-editor-font-family, monospace)",
+      color: "var(--vscode-editor-foreground)"
+    },
+    requiredDot: {
+      color: "var(--vscode-errorForeground, #f85149)",
+      fontWeight: 700,
+      fontSize: "0.9em"
+    },
+    typeBadge: {
+      padding: "0px 6px",
+      color: "var(--vscode-editor-background, #1e1e1e)",
+      borderRadius: 8,
+      fontSize: "0.75em",
+      fontWeight: 600,
+      whiteSpace: "nowrap",
+      flexShrink: 0
+    },
+    formatBadge: {
+      padding: "0px 5px",
+      background: "var(--vscode-badge-background)",
+      color: "var(--vscode-badge-foreground)",
+      borderRadius: 8,
+      fontSize: "0.72em",
+      whiteSpace: "nowrap"
+    },
+    enumHint: {
+      color: "var(--vscode-descriptionForeground)",
+      fontSize: "0.78em",
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+      maxWidth: 180
+    },
+    children: {
+      borderLeft: "1px solid var(--vscode-widget-border, var(--vscode-input-border))",
+      marginLeft: 4
+    }
+  };
+
+  // webview-src/App.tsx
+  var import_jsx_runtime9 = __toESM(require_jsx_runtime());
   function App() {
-    const { selectedNode, analysisResult, loading, error } = useNodeData();
-    (0, import_react6.useEffect)(() => {
+    const { selectedNode, analysisResult, schemaResult, loading, error } = useNodeData();
+    (0, import_react7.useEffect)(() => {
       postMessage({ type: "ready" });
     }, []);
-    (0, import_react6.useEffect)(() => {
+    (0, import_react7.useEffect)(() => {
       const handler = (e) => {
         const url = e.detail;
         postMessage({ type: "open.url", payload: { url } });
@@ -13931,11 +14139,20 @@
       return () => window.removeEventListener("jl:openurl", handler);
     }, []);
     if (loading)
-      return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(CenteredMsg, { children: "Loading\u2026" });
+      return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CenteredMsg, { children: "Loading\u2026" });
     if (error)
-      return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(CenteredMsg, { error: true, children: error });
+      return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(CenteredMsg, { error: true, children: error });
+    if (schemaResult && selectedNode) {
+      return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
+        SchemaView,
+        {
+          payload: schemaResult,
+          onBack: () => postMessage({ type: "navigate.path", payload: { path: selectedNode.path } })
+        }
+      );
+    }
     if (analysisResult) {
-      return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(
+      return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(
         FieldAnalysisView,
         {
           payload: analysisResult,
@@ -13944,11 +14161,11 @@
       );
     }
     if (!selectedNode)
-      return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(Empty, {});
-    return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)(NodePreview, { node: selectedNode });
+      return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(Empty, {});
+    return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)(NodePreview, { node: selectedNode });
   }
   function CenteredMsg({ children, error }) {
-    return /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: {
+    return /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: {
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -13958,7 +14175,7 @@
     }, children });
   }
   function Empty() {
-    return /* @__PURE__ */ (0, import_jsx_runtime8.jsxs)("div", { style: {
+    return /* @__PURE__ */ (0, import_jsx_runtime9.jsxs)("div", { style: {
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
@@ -13968,16 +14185,16 @@
       color: "var(--vscode-descriptionForeground)",
       userSelect: "none"
     }, children: [
-      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: { fontSize: "2em", opacity: 0.3 } }),
-      /* @__PURE__ */ (0, import_jsx_runtime8.jsx)("div", { style: { fontSize: "0.9em" }, children: "Select a node in the tree to preview it" })
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: { fontSize: "2em", opacity: 0.3 } }),
+      /* @__PURE__ */ (0, import_jsx_runtime9.jsx)("div", { style: { fontSize: "0.9em" }, children: "Select a node in the tree to preview it" })
     ] });
   }
 
   // webview-src/index.tsx
-  var import_jsx_runtime9 = __toESM(require_jsx_runtime());
+  var import_jsx_runtime10 = __toESM(require_jsx_runtime());
   var container = document.getElementById("root");
   if (container) {
-    (0, import_client.createRoot)(container).render(/* @__PURE__ */ (0, import_jsx_runtime9.jsx)(App, {}));
+    (0, import_client.createRoot)(container).render(/* @__PURE__ */ (0, import_jsx_runtime10.jsx)(App, {}));
   }
 })();
 /*! Bundled license information:

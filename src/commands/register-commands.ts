@@ -5,6 +5,7 @@ import { pathToString, stringToPath } from "../core/path-utils.js";
 import { buildIndex, query, type SearchIndex, type SearchMatch } from "../search/searcher.js";
 import { buildNodePayload } from "../webview/node-payload.js";
 import { analyzeArrayNode } from "../analysis/field-analyzer.js";
+import { inferSchemaNode } from "../analysis/schema-inferrer.js";
 import type { PanelManager } from "../webview/panel-manager.js";
 import { log } from "../utils/logger.js";
 
@@ -62,13 +63,45 @@ export function registerCommands(
     vscode.commands.registerCommand("jsonlens.analyzeFields", (node?: JsonNode) =>
       runAnalyzeFields(node, panelManager)
     ),
-    vscode.commands.registerCommand("jsonlens.inferSchema", () => {
-      vscode.window.showInformationMessage("JsonLens: Schema inference coming in Phase 5.");
-    }),
+    vscode.commands.registerCommand("jsonlens.inferSchema", (node?: JsonNode) =>
+      runInferSchema(node, panelManager)
+    ),
     vscode.commands.registerCommand("jsonlens.exportSchema", () => {
-      vscode.window.showInformationMessage("JsonLens: Schema export coming in Phase 5.");
+      // Export is initiated from the webview; this command is a no-op stub kept for package.json
     })
   );
+}
+
+async function runInferSchema(node: JsonNode | undefined, panelManager: PanelManager): Promise<void> {
+  const target = node ?? getNodeAtCursor();
+  if (!target) {
+    vscode.window.showWarningMessage("JsonLens: Select an object or array node to infer schema.");
+    return;
+  }
+  if (target.type !== "object" && target.type !== "array") {
+    vscode.window.showWarningMessage("JsonLens: Schema inference requires an object or array node.");
+    return;
+  }
+
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) return;
+  const uri = editor.document.uri.toString();
+  const state = documentStore.get(uri);
+  if (!state) return;
+
+  panelManager.getOrCreate();
+  panelManager.send({ type: "node.loading" });
+
+  try {
+    const payload = await vscode.window.withProgress(
+      { location: vscode.ProgressLocation.Window, title: "JsonLens: Inferring schema…" },
+      () => inferSchemaNode(target, state.rawText)
+    );
+    log(`Schema: ${payload.stats.nodeCount} nodes`);
+    panelManager.send({ type: "schema.result", payload });
+  } catch (err) {
+    panelManager.send({ type: "error", payload: { message: `Schema inference failed: ${err}` } });
+  }
 }
 
 async function runAnalyzeFields(node: JsonNode | undefined, panelManager: PanelManager): Promise<void> {

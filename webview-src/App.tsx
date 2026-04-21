@@ -3,9 +3,10 @@ import { postMessage } from "./vscode-api.js";
 import { useNodeData } from "./hooks/useNodeData.js";
 import { NodePreview } from "./components/NodePreview.js";
 import { FieldAnalysisView } from "./components/FieldAnalysisView.js";
+import { SchemaView } from "./components/SchemaView.js";
 
 export function App() {
-  const { selectedNode, analysisResult, loading, error } = useNodeData();
+  const { selectedNode, analysisResult, schemaResult, loading, error } = useNodeData();
 
   useEffect(() => {
     postMessage({ type: "ready" });
@@ -22,6 +23,15 @@ export function App() {
 
   if (loading) return <CenteredMsg>Loading…</CenteredMsg>;
   if (error) return <CenteredMsg error>{error}</CenteredMsg>;
+
+  if (schemaResult && selectedNode) {
+    return (
+      <SchemaView
+        payload={schemaResult}
+        onBack={() => postMessage({ type: "navigate.path", payload: { path: selectedNode.path } })}
+      />
+    );
+  }
 
   if (analysisResult) {
     return (

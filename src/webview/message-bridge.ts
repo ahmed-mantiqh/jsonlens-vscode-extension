@@ -52,6 +52,7 @@ export type ExtensionMessage =
   | { type: "node.selected";   payload: NodePayload }
   | { type: "node.loading" }
   | { type: "analysis.result"; payload: AnalysisPayload }
+  | { type: "schema.result";   payload: SchemaPayload }
   | { type: "error";           payload: { message: string } };
 
 export type WebviewMessage =
@@ -59,4 +60,6 @@ export type WebviewMessage =
   | { type: "copy.value";      payload: { path: string } }
   | { type: "open.url";        payload: { url: string } }
   | { type: "analyze.request"; payload: { path: string } }
+  | { type: "schema.request";  payload: { path: string } }
+  | { type: "schema.export";   payload: { schema: object } }
   | { type: "ready" };

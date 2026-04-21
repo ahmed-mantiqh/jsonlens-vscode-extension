@@ -59,6 +59,14 @@ export function NodePreview({ node }: Props) {
               : `${node.childCount} ${node.childCount === 1 ? "item" : "items"}`}
           </span>
         )}
+        {(node.type === "object" || node.type === "array") && (
+          <button
+            style={s.schemaBtn}
+            onClick={() => postMessage({ type: "schema.request", payload: { path: node.path } })}
+          >
+            Infer Schema
+          </button>
+        )}
       </div>
 
       {/* Body */}
@@ -160,6 +168,16 @@ const s: Record<string, React.CSSProperties> = {
   count: {
     fontSize: "0.82em",
     color: "var(--vscode-descriptionForeground)",
+  },
+  schemaBtn: {
+    background: "none",
+    border: "1px solid var(--vscode-button-border, var(--vscode-widget-border))",
+    color: "var(--vscode-textLink-foreground)",
+    borderRadius: 3,
+    cursor: "pointer",
+    padding: "1px 7px",
+    fontSize: "0.78em",
+    marginLeft: "auto",
   },
   body: {},
   boolVal: {

@@ -11,6 +11,7 @@ import { PanelManager } from "./webview/panel-manager.js";
 import { buildNodePayload } from "./webview/node-payload.js";
 import { stringToPath } from "./core/path-utils.js";
 import { analyzeArrayNode } from "./analysis/field-analyzer.js";
+import { inferSchemaNode } from "./analysis/schema-inferrer.js";
 import type { JsonNode } from "./core/tree-node.js";
 
 const SUPPORTED = new Set(["json", "jsonc"]);
@@ -86,6 +87,23 @@ export function activate(ctx: vscode.ExtensionContext): void {
       analyzeArrayNode(node, state.rawText).then(
         (payload) => panelManager.send({ type: "analysis.result", payload }),
         (err) => panelManager.send({ type: "error", payload: { message: `Analysis failed: ${err}` } })
+      );
+    } else if (msg.type === "schema.request") {
+      const path = stringToPath(msg.payload.path);
+      const node = documentStore.getNodeAtPath(uri, path);
+      if (!node || (node.type !== "object" && node.type !== "array")) return;
+      const state = documentStore.get(uri);
+      if (!state) return;
+      panelManager.send({ type: "node.loading" });
+      inferSchemaNode(node, state.rawText).then(
+        (payload) => panelManager.send({ type: "schema.result", payload }),
+        (err) => panelManager.send({ type: "error", payload: { message: `Schema inference failed: ${err}` } })
+      );
+    } else if (msg.type === "schema.export") {
+      const content = JSON.stringify(msg.payload.schema, null, 2);
+      vscode.workspace.openTextDocument({ language: "json", content }).then(
+        (doc) => vscode.window.showTextDocument(doc, { preview: false }),
+        () => {}
       );
     } else if (msg.type === "ready") {
       // Re-send current selection on webview ready (panel reload/reveal)

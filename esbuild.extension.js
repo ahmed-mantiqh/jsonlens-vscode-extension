@@ -13,18 +13,20 @@ const sharedOpts = {
 };
 
 Promise.all([
-  esbuild.context({ ...sharedOpts, entryPoints: ["src/extension.ts"], outfile: "out/extension.js" }),
-  esbuild.context({ ...sharedOpts, entryPoints: ["src/workers/analysis-worker.ts"], outfile: "out/workers/analysis-worker.js" }),
-]).then(async ([extCtx, workerCtx]) => {
+  esbuild.context({ ...sharedOpts, entryPoints: ["src/extension.ts"],                          outfile: "out/extension.js" }),
+  esbuild.context({ ...sharedOpts, entryPoints: ["src/workers/analysis-worker.ts"],             outfile: "out/workers/analysis-worker.js" }),
+  esbuild.context({ ...sharedOpts, entryPoints: ["src/workers/schema-worker.ts"],               outfile: "out/workers/schema-worker.js" }),
+]).then(async ([extCtx, analysisCtx, schemaCtx]) => {
   if (watch) {
     await extCtx.watch();
-    await workerCtx.watch();
+    await analysisCtx.watch();
+    await schemaCtx.watch();
     console.log("Watching...");
   } else {
-    await extCtx.rebuild();
-    await extCtx.dispose();
-    await workerCtx.rebuild();
-    await workerCtx.dispose();
+    for (const ctx of [extCtx, analysisCtx, schemaCtx]) {
+      await ctx.rebuild();
+      await ctx.dispose();
+    }
     console.log("Build complete.");
   }
 }).catch(() => process.exit(1));
