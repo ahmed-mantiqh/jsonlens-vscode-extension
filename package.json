@@ -1,0 +1,260 @@
+{
+  "name": "jsonlens",
+  "displayName": "JsonLens",
+  "description": "Interactive visual navigation and analysis for JSON files inside VS Code",
+  "version": "0.1.7",
+  "publisher": "mantiqh",
+  "icon": "media/logo.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mantiqh/jsonlens-extension.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "activationEvents": [
+    "onLanguage:json",
+    "onLanguage:jsonc",
+    "onView:jsonlensView",
+    "onCustomEditor:jsonlens.preview",
+    "onCommand:jsonlens.openInJsonLens",
+    "onCommand:jsonlens.searchTree",
+    "onCommand:jsonlens.openPreview",
+    "onCommand:jsonlens.openWithPreview"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "jsonlens",
+          "title": "JsonLens",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "jsonlens": [
+        {
+          "id": "jsonlensView",
+          "name": "JsonLens"
+        }
+      ]
+    },
+    "customEditors": [
+      {
+        "viewType": "jsonlens.preview",
+        "displayName": "JsonLens Preview",
+        "selector": [
+          {
+            "filenamePattern": "*.json"
+          },
+          {
+            "filenamePattern": "*.jsonc"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "jsonlens.collapseAll",
+        "title": "JsonLens: Collapse All",
+        "icon": "$(collapse-all)"
+      },
+      {
+        "command": "jsonlens.copyValue",
+        "title": "JsonLens: Copy Value"
+      },
+      {
+        "command": "jsonlens.openPreview",
+        "title": "JsonLens: Open Preview"
+      },
+      {
+        "command": "jsonlens.searchTree",
+        "title": "JsonLens: Search",
+        "icon": "$(search)"
+      },
+      {
+        "command": "jsonlens.analyzeFields",
+        "title": "JsonLens: Analyze Fields"
+      },
+      {
+        "command": "jsonlens.inferSchema",
+        "title": "JsonLens: Infer JSON Schema"
+      },
+      {
+        "command": "jsonlens.exportSchema",
+        "title": "JsonLens: Export Schema"
+      },
+      {
+        "command": "jsonlens.openInJsonLens",
+        "title": "JsonLens: Open JSON in JsonLens…",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "jsonlens.openWithPreview",
+        "title": "JsonLens: Open with Preview"
+      },
+      {
+        "command": "jsonlens.openAsText",
+        "title": "JsonLens: Open as Text"
+      },
+      {
+        "command": "jsonlens.refreshView",
+        "title": "JsonLens: Refresh",
+        "icon": "$(refresh)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "jsonlens.openPreview",
+        "key": "ctrl+alt+j",
+        "mac": "cmd+alt+j",
+        "when": "editorLangId == json || editorLangId == jsonc"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "jsonlens.openPreview",
+          "when": "resourceExtname == .json || resourceExtname == .jsonc || resourceLangId == json || resourceLangId == jsonc"
+        },
+        {
+          "command": "jsonlens.searchTree",
+          "when": "jsonlens.active"
+        },
+        {
+          "command": "jsonlens.analyzeFields",
+          "when": "jsonlens.active"
+        },
+        {
+          "command": "jsonlens.inferSchema",
+          "when": "jsonlens.active"
+        },
+        {
+          "command": "jsonlens.openInJsonLens"
+        },
+        {
+          "command": "jsonlens.openAsText",
+          "when": "jsonlens.active"
+        },
+        {
+          "command": "jsonlens.collapseAll",
+          "when": "false"
+        },
+        {
+          "command": "jsonlens.copyValue",
+          "when": "false"
+        },
+        {
+          "command": "jsonlens.exportSchema",
+          "when": "false"
+        },
+        {
+          "command": "jsonlens.openWithPreview",
+          "when": "false"
+        },
+        {
+          "command": "jsonlens.refreshView",
+          "when": "false"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "jsonlens.openPreview",
+          "when": "resourceExtname == .json || resourceExtname == .jsonc",
+          "group": "navigation@3"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "jsonlens.openPreview",
+          "when": "resourceLangId == json || resourceLangId == jsonc",
+          "group": "jsonlens@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "jsonlens.openWithPreview",
+          "when": "view == jsonlensView && viewItem == jsonFile",
+          "group": "inline@1"
+        },
+        {
+          "command": "jsonlens.openAsText",
+          "when": "view == jsonlensView && viewItem == jsonFile",
+          "group": "jsonlens@1"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "jsonlens.openInJsonLens",
+          "when": "view == jsonlensView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "jsonlens.refreshView",
+          "when": "view == jsonlensView",
+          "group": "navigation@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "JsonLens",
+      "properties": {
+        "jsonlens.largeFileThresholdMB": {
+          "type": "number",
+          "default": 2,
+          "description": "Files above this size (MB) use streaming parse."
+        },
+        "jsonlens.veryLargeFileThresholdMB": {
+          "type": "number",
+          "default": 20,
+          "description": "Files above this size (MB) use top-level-only streaming."
+        },
+        "jsonlens.maxChildrenPerNode": {
+          "type": "number",
+          "default": 200,
+          "description": "Max children rendered per node before pagination."
+        },
+        "jsonlens.debug": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable debug output channel with timing logs."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node esbuild.extension.js && node esbuild.webview.js",
+    "build:ext": "node esbuild.extension.js",
+    "build:web": "node esbuild.webview.js",
+    "watch": "node esbuild.extension.js --watch",
+    "watch:web": "node esbuild.webview.js --watch",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/stream-json": "^1.7.8",
+    "@types/vscode": "^1.85.0",
+    "ajv": "^8.18.0",
+    "esbuild": "^0.20.0",
+    "ovsx": "^0.10.11",
+    "typescript": "^5.3.0",
+    "vitest": "^1.2.0",
+    "vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.2.1",
+    "react": "^19.2.5",
+    "react-dom": "^19.2.5",
+    "stream-json": "^2.1.0"
+  }
+}
