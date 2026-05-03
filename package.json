@@ -2,7 +2,7 @@
   "name": "jsonlens-viewer",
   "displayName": "JsonLens",
   "description": "Interactive visual navigation and analysis for JSON files inside VS Code",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "publisher": "mantiqh",
   "license": "MIT",
   "icon": "media/logo.png",
